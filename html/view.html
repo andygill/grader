@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Grader Viewer</title>
+        <script type="text/javascript" src="js/jquery.js"></script>
+        <script type="text/javascript" src="js/jquery-json.js"></script>
+        <script type="text/javascript" src="js/kansas-comet.js"></script>
+        <link type="text/css" href="css/ui-lightness/jquery-ui.css" rel="Stylesheet" />
+        <link type="text/css" href="css/bootstrap.css" rel="Stylesheet" />
+        <script type="text/javascript" src="js/jquery-ui.js"></script>
+
+        
+        
+        <style type="text/css" media="screen">
+           #headline1 {
+                   background-color: red;
+                   background-image: url(pages/exam.300-2.png);
+                   background-repeat: no-repeat;
+                   background-position: left top;
+                   height: 1000px;
+                   padding-top:68px;
+                   margin-bottom:50px;
+           }
+           #myCanvas {
+                   border: 1px solid black;
+                   margin-top: 20px;
+           }
+           .slider-table td {
+                   line-height: 1.5em;
+                   padding-left: 5pt;
+                   padding-right: 5pt;
+                   border: 1px solid black;
+           }
+     </style>         
+        
+        
+    </head>
+    <body>
+
+    <div class="container">
+      <div class="row">
+      <div class="span8">
+        <table class="slider-table">
+          <tr><td>page</td><td>1</td><td><div id="page-slider" style="width: 200px" class="slide"></div></td></tr>
+        </table>        
+      </div>
+      <div class="span4" style="background-color: red">
+        <table class="slider-table">
+        <tr><td>page</td><td>1</td><td><div id="page-slider" style="width: 200px" class="slide"></div></td></tr>
+        <tr><td>x</td><td>1</td><td><div id="page-slider" style="width: 200px" class="slide"></div></td></tr>
+        <tr><td>y</td><td>1</td><td><div id="page-slider" style="width: 200px" class="slide"></div></td></tr>
+        <tr><td>scale</td><td>1</td><td><div id="page-slider" style="width: 200px" class="slide"></div></td></tr>
+        </table>
+      </div>
+
+      <div class="row-fluid">
+            <canvas id="myCanvas" width="960" height="600" style="border: 1px dashed black"></canvas>
+      </div>
+
+    <HR>
+            
+            
+    <div align="center" style="border: 1px dashed; padding: 10px; display: inline-block; line-height: 3em;">
+
+      <button id="reset" class="click">Reset</button>
+      <button id="down" class="click">-1</button>
+      <button id="up" class="click">+1</button>
+      <br/>
+      <span id="fib-out" style="font-size: x-large;" class="click">fib 0 = 1</span>
+      <br/>
+      <div id="slider" style="width: 200px" class="slide"></div>
+    </div>
+
+     
+   </div>
+
+        <script type="text/javascript">
+            $(document).ready(function() {
+//                $.kc.connect("/ajax");
+
+                $("button").button();
+
+                $( "#slider" ).slider({
+                        range: "min",
+                        value: 0,
+                        min: 0,
+                        max: 25
+                });
+                $( "#page-slider" ).slider({
+                        range: "min",
+                        value: 0,
+                        min: 0,
+                        max: 25
+                });
+
+
+      var canvas = document.getElementById('myCanvas');
+      var context = canvas.getContext('2d');
+      var imageObj = new Image();
+
+      imageObj.onload = function() {
+        context.drawImage(imageObj, 400, 100, 2050, 1490, 0, 0, 960, 600);
+      };
+      imageObj.src = '../pages/exam.300-2.png';
+
+            });
+        </script>
+    </body>
+</html>

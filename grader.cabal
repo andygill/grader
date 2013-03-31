@@ -1,0 +1,38 @@
+Name:                grader
+Version:             0.1
+Synopsis:            Grading Support 
+License:             BSD3
+Copyright:           (c) 2013 The University of Kansas
+Build-type:          Simple
+Cabal-version:       >= 1.10
+
+data-files:
+-- js
+    js/jquery-json.js
+    js/jquery-ui.js
+    js/jquery.js
+
+-- css
+    css/ui-lightness/*.css 
+    css/ui-lightness/images/*.png
+
+-- And the individual tests' index files.
+    html/index.html
+
+Extra-source-files:
+    README.md
+
+Executable grader-shaker
+    Build-Depends: 
+         base                   >= 4.6,
+         shake                  >= 0.9,
+         process                >= 1.1,
+        directory               >= 1.2
+
+    Main-is: Shake.hs
+    Hs-Source-Dirs: shake
+    Ghc-Options: -threaded
+    default-language:    Haskell2010
+
+
+ 
