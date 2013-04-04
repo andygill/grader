@@ -34,5 +34,22 @@ Executable grader-shaker
     Ghc-Options: -threaded
     default-language:    Haskell2010
 
+Executable grader-server
+    Build-Depends: 
+        base                    >= 4.6,
+        shake                   >= 0.9,
+        process                 >= 1.1,
+        sunroof-compiler        >= 0.1,
+        sunroof-server          >= 0.1,
+        Boolean                 >= 0.2,
+        semigroups              >= 0.9,
+        data-default            >= 0.5,
+        directory               >= 1.2
+
+    Main-is: Main.hs
+    Hs-Source-Dirs: src
+    Ghc-Options: -threaded
+    default-language:    Haskell2010
+
 
  

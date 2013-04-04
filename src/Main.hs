@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, TypeFamilies #-}
 
 module Main where
 
@@ -12,33 +12,49 @@ import Language.Sunroof.Server
 import Language.Sunroof.JS.Canvas
 import Language.Sunroof.JS.Browser ( alert )
 import Language.Sunroof.JS.JQuery
-import Paths_sunroof_examples
 
 main :: IO ()
 main = do
- dataDir <- getDataDir
+-- dataDir <- getDataDir
  sunroofServer (def { sunroofVerbose = 0
-                      , cometResourceBaseDir = "." --= dataDir
-                      , cometIndexFile = "html/index.html"
+                      , cometResourceBaseDir = "html" -- dataDir
+                      , cometIndexFile = "view.html"
                       }) $ \ doc -> asyncJS doc prog
 
 
+newtype Slide = Slide JSObject
+
+instance Sunroof Slide where
+  box   = Slide . box
+  unbox (Slide o) = unbox o
+  typeOf _ = Base
+
+instance JSTuple Slide where
+  type Internals Slide = (JSString,JSNumber)
+  match o = (o ! "id", o ! "value")
+  tuple (id_,num) = do
+    o <- new "Object" ()
+    o # "id" := id_
+    o # "num" := num
+    return $ Slide o
+
 prog :: JSB ()
 prog = do
-
       ch <- newChan
 
+      jq "body" >>= on "slide" ".slide" (\ (a :: JSObject, aux :: JSObject) -> do
+                the_id :: JSString <- jq (cast $ this) >>= invoke "attr" ("id" :: JSString)
+                tuple (the_id,aux ! "value") >>= \ (o :: Slide) -> ch # writeChan o)
+
+      alert("Hello")
+
+{-
       jq "body" >>= on "click" ".click" (\ () -> do
                 the_id :: JSString <- jq (cast $ this) >>= invoke "attr" ("id" :: JSString)
                 o <- new "Object" ()
                 o # "id" := the_id
                 ch # writeChan o)
-      jq "body" >>= on "slide" ".slide" (\ (a :: JSObject, aux :: JSObject) -> do
-                the_id :: JSString <- jq (cast $ this) >>= invoke "attr" ("id" :: JSString)
-                o <- new "Object" ()
-                o # "id" := the_id
-                o # "value" := (aux ! "value" :: JSString)
-                ch # writeChan o)
+
 
       obj <- new "Object" ()
       obj # attr "model" := (0 :: JSNumber)
@@ -80,7 +96,7 @@ prog = do
                 res <- apply fib model
                 jQuery "#fib-out" >>= setHtml ("fib " <> cast model <> " = " <> cast res)
                 return ()
-
+-}
       return ()
 
 default(JSNumber, JSString, String)
