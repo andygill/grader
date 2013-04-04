@@ -12,13 +12,20 @@ import Language.Sunroof.Server
 import Language.Sunroof.JS.Canvas
 import Language.Sunroof.JS.Browser ( alert )
 import Language.Sunroof.JS.JQuery
+import Network.Wai.Middleware.Static
+
+ourPolicy :: Policy -> Policy
+ourPolicy p = p
+        <|> (hasSuffix ".html" >-> addBase "html")
+        <|> (hasPrefix "pages/")
 
 main :: IO ()
 main = do
 -- dataDir <- getDataDir
- sunroofServer (def { sunroofVerbose = 0
-                      , cometResourceBaseDir = "html" -- dataDir
-                      , cometIndexFile = "view.html"
+ sunroofServer (def { sunroofVerbose = 3
+                      , cometResourceBaseDir = "." -- dataDir
+                      , cometPolicy = ourPolicy (cometPolicy def)
+                      , cometIndexFile = "html/view.html"
                       }) $ \ doc -> asyncJS doc prog
 
 
