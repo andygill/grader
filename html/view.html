@@ -47,9 +47,9 @@
       </div>
       <div class="span4" style="background-color: red">
         <table class="slider-table">
-        <tr><td>page</td><td>1</td><td><div id="page-slider" style="width: 200px" class="slide"></div></td></tr>
-        <tr><td>x</td><td>1</td><td><div id="page-slider" style="width: 200px" class="slide"></div></td></tr>
-        <tr><td>y</td><td>1</td><td><div id="page-slider" style="width: 200px" class="slide"></div></td></tr>
+        <tr><td>page</td> <td>1</td><td><div id="page-slider" style="width: 200px" class="slide"></div></td></tr>
+        <tr><td>x</td>    <td>1</td><td><div id="page-slider" style="width: 200px" class="slide"></div></td></tr>
+        <tr><td>y</td>    <td>1</td><td><div id="page-slider" style="width: 200px" class="slide"></div></td></tr>
         <tr><td>scale</td><td>1</td><td><div id="page-slider" style="width: 200px" class="slide"></div></td></tr>
         </table>
       </div>
@@ -99,9 +99,9 @@
       var context = canvas.getContext('2d');
       var imageObj = new Image();
 
-      imageObj.onload = function() {
+      $(imageObj).on("load",function() {
         context.drawImage(imageObj, 400, 100, 2050, 1490, 0, 0, 960, 600);
-      };
+      });
       imageObj.src = 'pages/exam.300-2.png';
 
             });
