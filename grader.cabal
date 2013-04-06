@@ -45,6 +45,7 @@ Executable grader-server
         semigroups              >= 0.9,
         data-default            >= 0.5,
         directory               >= 1.2,
+        template-haskell        >= 0.0,
         wai-middleware-static   >= 0.3.1
 
     Main-is: Main.hs
