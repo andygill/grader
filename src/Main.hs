@@ -25,13 +25,20 @@ $(jstuple ''Slide2)
 
 newtype Slide = Slide JSObject
 
-derive [d| instance Show Slide |]
+deriveX [d| instance Show Slide |]
 
 newtype JSX a = JSX JSObject
 
 -- | Show the Javascript.
-derive [d| instance (SunroofArgument o) => Show (JSX o) |]
-derive [d| instance (SunroofArgument o) => Sunroof (JSX o) |]
+deriveJSTuple [d|
+--        instance (SunroofArgument o) => Show (JSX o)
+--        instance (SunroofArgument o) => Sunroof (JSX o)
+--        instance (SunroofArgument o) => IfB (JSX o)
+        instance (SunroofArgument o) => JSTuple (JSX o) where
+           type Internals (JSX o) = (JSString,JSNumber)
+        |]
+
+type instance BooleanOf (JSX o) = JSBool
 
 ourPolicy :: Policy -> Policy
 ourPolicy p = p

@@ -6,6 +6,8 @@ import Language.Haskell.TH
 import Language.Sunroof.Types as SRT
 import Language.Sunroof.Classes
 import Language.Sunroof.JS.Object
+import Language.Sunroof.JS.Bool
+import Data.Boolean
 
 -- | @derive@ derives incomplete instances.
 --
@@ -13,9 +15,11 @@ import Language.Sunroof.JS.Object
 --
 -- > newtype JSX = JSX JSObject
 --
--- and then the start of the instance, and the rest gets filled in
+-- and then the start of the JSTuple instance, and the rest gets filled in
 --
--- > derive [d| instance Show JSX |]
+-- > derive [d| instance (SunroofArgument o) => JSTuple (JSX o) where
+-- >                type Internals (JSX o) = (JSString,JSNumber)
+-- >        |]
 --
 -- generates
 --
@@ -23,8 +27,115 @@ import Language.Sunroof.JS.Object
 -- >    show (JSX o) = show o
 --
 
-derive :: Q [Dec] -> Q [Dec]
-derive decsQ = do
+deriveJSTuple :: Q [Dec] -> Q [Dec]
+deriveJSTuple decsQ = do
+        decs <- decsQ
+        fmap concat $ mapM complete decs
+  where
+        complete :: Dec -> Q [Dec]
+        complete (InstanceD cxt hd@(AppT (ConT typeClass) ty) decls) = do
+                let k decls' = InstanceD cxt hd (decls ++ decls')
+                let findClass (ConT t) = t
+                    findClass (AppT t1 _) = findClass t1
+                    findClass _ =  error $ "strange instance head found in derive " ++ show ty
+                let tConTy = findClass ty
+                -- Next, find the type instance
+                let internalTy = case decls of
+                        [TySynInstD tyFun [arg] internalTy] | tyFun == ''Internals -> internalTy
+                        _  -> error $ "can not find usable type instance inside JSTuple"
+                runIO $ print internalTy
+                let findInternalStructure (TupleT n) ts = do
+                        vs <- sequence [ newName "v" | _ <- ts ]
+                        return (TupE,TupP [ VarP v | v <- vs], vs `zip` [ "f" ++ show i | (i::Int) <- [1..]])
+                    findInternalStructure (AppT t1 t2) ts = findInternalStructure t1 (t2 : ts)
+
+                (builder :: [Exp] -> Exp,unbuilder :: Pat, vars :: [(Name,String)]) <- findInternalStructure internalTy []
+
+                runIO $ print (unbuilder,vars)
+
+                -- Now work with the tConTy, to get the tCons
+                info <- reify tConTy
+                let tCons = case info of
+                      TyConI (NewtypeD _ _ _ (NormalC tCons [(NotStrict,ConT o)]) [])
+                        | o /= ''JSObject -> error $ "not newtype of JSObject"
+                        | typeClass /= ''JSTuple -> error $ "not instance of JSTuple" ++ show (tConTy,''JSTuple)
+                        | otherwise -> tCons
+                      _ -> error $ "strange info for newtype type " ++ show info
+
+--                                decls' <- completeWith typeClass tConTy tCons
+--                                return $ k decls'
+
+
+                o <- newName "o"
+                n <- newName "n"
+
+                return [ InstanceD cxt (AppT (ConT ''Show) ty)
+                           [ FunD 'show
+                              [ Clause [ConP tCons [VarP o]]
+                                         (NormalB (AppE (VarE 'show) (VarE o))) []]]
+                       , InstanceD cxt (AppT (ConT ''Sunroof) ty)
+                           [ FunD 'box
+                              [ Clause [VarP n] (NormalB (AppE (ConE tCons)
+                                                               (AppE (VarE 'box) (VarE n)))) []]
+                          , FunD 'unbox
+                              [ Clause [ConP tCons [VarP o]]
+                                                (NormalB (AppE (VarE 'unbox) (VarE o))) []]
+                           ]
+                       , InstanceD cxt (AppT (ConT ''IfB) ty)
+                              [ ValD (VarP 'ifB) (NormalB (VarE 'jsIfB)) [] ]
+                       , TySynInstD ''BooleanOf [ty] (ConT ''JSBool)
+                       , InstanceD cxt (AppT (ConT ''JSTuple) ty) $ decls ++
+                           [ FunD 'SRT.match
+                              [Clause [VarP o] (NormalB (builder
+                                  [ AppE (AppE (VarE $ mkName "!") (VarE o))
+                                         (AppE (VarE 'attr) (LitE $ StringL $ s))
+                                  | (_,s) <- vars ])) []]
+                           , FunD 'SRT.tuple
+                              [ Clause [unbuilder] (NormalB (DoE (
+                                        [ BindS (VarP o) (AppE (AppE (VarE 'new) (LitE $ StringL $ "Object")) (TupE []))
+                                        ] ++
+                                        [ NoBindS $
+                                          let assign = AppE (AppE (ConE $ mkName ":=")
+                                                                  (AppE (VarE 'attr) (LitE $ StringL $ s)))
+                                                            (VarE v)
+
+                                          in  AppE (AppE (VarE $ mkName "#")
+                                                         (VarE o))
+                                                   (assign)
+                                        | (v,s) <- vars
+                                        ] ++
+                                        [ NoBindS $ AppE (VarE 'return) (AppE (ConE tCons) (VarE o))
+                                        ]))) []
+                              ]
+                           ]
+                       ]
+
+        complete dec = error $ "can not complete derive for " ++ show dec
+
+        completeWith :: Name -> Name -> Name -> Q [Dec]
+        completeWith tyClass tConTy tCons
+           | tyClass == ''Show = do
+                o <- newName "o"
+                return [ FunD 'show
+                              [ Clause [ConP tCons [VarP o]]
+                                         (NormalB (AppE (VarE 'show) (VarE o))) []]]
+           | tyClass == ''Sunroof = do
+                o <- newName "o"
+                n <- newName "n"
+                return [ FunD 'box
+                          [ Clause [VarP n] (NormalB (AppE (ConE tCons)
+                                                           (AppE (VarE 'box) (VarE n)))) []]
+                       ,FunD 'unbox
+                          [ Clause [ConP tCons [VarP o]]
+                                            (NormalB (AppE (VarE 'unbox) (VarE o))) []]
+                       ]
+           | tyClass == ''IfB =
+                return [ ValD (VarP 'ifB) (NormalB (VarE 'jsIfB)) []
+                       ]
+           | otherwise = error $ "trying to complete " ++ show tyClass
+
+deriveX :: Q [Dec] -> Q [Dec]
+deriveX decsQ = do
         decs <- decsQ
         mapM complete decs
   where
@@ -58,9 +169,12 @@ derive decsQ = do
                 return [ FunD 'box
                           [ Clause [VarP n] (NormalB (AppE (ConE tCons)
                                                            (AppE (VarE 'box) (VarE n)))) []]
-                       , FunD 'unbox
+                       ,FunD 'unbox
                           [ Clause [ConP tCons [VarP o]]
                                             (NormalB (AppE (VarE 'unbox) (VarE o))) []]
+                       ]
+           | tyClass == ''IfB =
+                return [ ValD (VarP 'ifB) (NormalB (VarE 'jsIfB)) []
                        ]
            | otherwise = error $ "trying to complete " ++ show tyClass
 
