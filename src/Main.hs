@@ -58,22 +58,43 @@ prog = do
                 the_index :: JSNumber <- evaluate $ N.round (aux ! "value" :: JSNumber)
                 tuple (Slide the_id the_index) >>= \ (o :: JSSlide) -> ch # writeChan o)
 
+      let offset :: JSSelector JSObject
+          offset = "offset"
+
+          top, left :: JSSelector JSNumber
+          top = "top"
+          left = "left"
+
+      offsetStart :: JSRef JSObject <- newJSRef nullJS
+
+      -- the Drag Channel
+      dragCh <- newChan
+      jq "#myCanvas" >>= on "dragstart" "" (\ (event :: JSObject, aux:: JSObject) -> do
+                        offsetStart # writeJSRef (aux ! offset))
+
+      jq "#myCanvas" >>= on "drag" "" (\ (event :: JSObject, aux:: JSObject) -> do
+                        start <- offsetStart # readJSRef
+                        end <- evaluate (aux ! offset)
+                        let drag = Drag ((end ! left) - (start ! left)) ((end ! top) - (start ! top))
+                        console # B.log ("offset " <> cast (dragX drag)
+                                            <> " " <> cast (dragY drag)
+                                            :: JSString)
+                        tuple drag >>= \ (o::JSDrag) -> dragCh # writeChan o
+                        offsetStart # writeJSRef end
+                )
 
       -- channel of what to show on the graphical viewport
       viewportChan :: JSChan JSViewPort <- newChan
 
       -- Here is the model
-      model :: JSModel <- tuple $ Model
-                { mPage  = 1
+      let model = Model
+                { mPage  = 3
                 , mUID   = ""
                 , mX     = 400
                 , mY     = 100
                 , mScale = 2.0
                 }
-
-      -- set up the values
---      sequence [ do jq nm >>= invoke "slider" ("option" :: JSString,"min" :: JSString,minV :: JSNumber) :: JSA ()
---                    jq nm >>= invoke "slider" ("option" :: JSString,"value" :: JSString,val :: JSNumber) :: JSA ()
+      jsModel :: JSModel <- tuple model
 
       modelChan :: JSChan (JSFunction JSModel JSModel) <- newChan
 
@@ -85,13 +106,21 @@ prog = do
                                 tuple jsm')
                   modelChan # writeChan g
 
-      forkJS $ loop model $ \ m -> do
+      forkJS $ loop jsModel $ \ m -> do
               up <- modelChan # readChan
               console # B.log ("updateModel" :: JSString)
               m' <- up $$ m
               let jsm = match m'
+              -- Display the model
+              txt <- fun "$.toJSON" $$ m'
+              console # B.log ("MODEL: " <> txt :: JSString)
+
               -- and propogate the model
-              vp :: JSViewPort <- tuple $ ViewPort ("pages/exam.300-" <> cast (mPage jsm - 1) <> ".png") 400 100 2.0
+              vp :: JSViewPort <- tuple
+                        $ ViewPort ("/pages/exam.300-" <> cast (mPage jsm - 1) <> ".png")
+                                   (mX jsm)
+                                   (mY jsm)
+                                   (mScale jsm)
               viewportChan # writeChan vp
 
               -- Write the side boxes
@@ -116,13 +145,25 @@ prog = do
           scaling :: JSNumber -> JSNumber
           scaling n = (n/100) * (max_scaling - min_scaling) + min_scaling
 
+      -- listen on sliders
       forkJS $ loop () $ \ () -> do
         o :: JSSlide <- ch # readChan
         let (Slide the_id aux) = match o
         console # B.log ("Slide : " <> cast the_id <> " " <> cast aux :: JSString)
-        switch the_id [ ("page-slider", upModel $ \ jsm -> return $ jsm { mPage = aux })
+        switch the_id [ ("page-slider", upModel $ \ jsm -> return $ jsm { mPage  = aux
+                                                                        , mX     = mX model
+                                                                        , mY     = mY model
+                                                                        , mScale = mScale model
+                                                                        })
                       , ("scale-slider", upModel $ \ jsm -> return $ jsm { mScale = scaling aux })
                       ]
+
+      -- listen of drags
+      forkJS $ loop () $ \ () -> do
+        o :: JSDrag <- dragCh # readChan
+        let (Drag dx dy) = match o
+        console # B.log ("Drag : " <> cast dx <> " " <> cast dy :: JSString)
+        upModel $ \ jsm -> return $ jsm { mX = mX jsm - mScale jsm * dx, mY = mY jsm - mScale jsm * dy }
 
       return ()
 
@@ -137,12 +178,19 @@ prog = do
               return ()
 -}
       -- The cached image, a non-connected DOM object, that is also an <img>
-      imageObj :: JSObject <- new "Image" ()
+      imageObj    :: JSObject <- new "Image" ()
+      imageAnchor :: JSObject <- document # createElement "a"
+      imageLoad   :: JSMVar () <- newEmptyMVar
+
+      jq (cast $ imageObj) >>= on "load" "" (\ () -> do
+                              console # B.log ("on-load" :: JSString)
+                              imageLoad # putMVar ()
+                              console # B.log ("pushed from on-load" :: JSString)
+                              )
 
       canvas <- document # getElementById("myCanvas")
       context <- canvas # getContext("2d")
 
-      okToDraw :: JSMVar () <- newMVar ()
 
       forkJS $ loop () $ \ () -> do
               console # B.log ("starting draw image loop" :: JSString)
@@ -150,42 +198,54 @@ prog = do
               o <- viewportChan # readChan
               let vp = match o
 
-              console # B.log ("waiting for ok To draw" :: JSString)
-              -- next, wait until you have permision to start drawing
-              okToDraw # takeMVar
-
-              console # B.log ("got ok To draw" :: JSString)
-
               -- figure out if we have the correct image loaded
 
-              let scale = 1 / 3 -- vpScale vp
+              let scale = vpScale vp :: JSNumber-- vpScale vp
 
-
-              console # B.log ("scale " <> cast scale <> "(" <> cast (vpX vp + 960 / scale) <> "," <> cast (vpY vp + 600 / scale) <> ")" :: JSString)
+              console # B.log ("scale " <> cast scale :: JSString)
 
               paint <- function $ \ () -> do
-                      context # drawImageClip imageObj (vpX vp, vpY vp)
---                                                       (vpX vp + 960 / scale,vpY vp + 600 / scale)
-                                                       (2050,1490)
+                      h :: JSNumber <- evaluate $ imageObj ! "height"
+                      w :: JSNumber <- evaluate $ imageObj ! "width"
+                      let x0 :: JSNumber = 0
+                          y0 :: JSNumber = 0
+                          x1 = h - 1
+                          y1 = h - 1
+                          boundX = maxB x0 . minB x1
+                          boundY = maxB y0 . minB y1
+
+                          startX = boundX $ vpX vp
+                          startY = boundY $ vpY vp
+
+                          endX = boundX $ vpX vp + 960 * scale
+                          endY = boundY $ vpY vp + 600 * scale
+
+                      context # drawImageClip imageObj (startX,startY)
+                                                       (endX - startX,endY - startY)
                                                        (0, 0)
                                                        (960, 600)
+                      console # B.log ("painted" :: JSString)
 
-              -- console # B.log ("internals : " <> cast (imageObj ! "complete" :: JSBool) :: JSString)
 
-              ifB ((imageObj ! src) ==* vpFile vp)
-                  (do -- is already loaded, so can just repaint
-                      apply paint ()
-                      okToDraw # putMVar ()
-                  )
+
+              console # B.log ("internals : " <> cast (imageObj ! "complete" :: JSBool)
+                                  <> " " <> cast (imageObj ! src :: JSString)
+                                  <> " " <> cast (imageAnchor ! "pathname" :: JSString)
+                                  <> " " <> cast (vpFile vp) :: JSString)
+
+              ifB ((imageAnchor ! "pathname") /=* vpFile vp)
                   (do  -- need to reload image
                       imageObj # src := vpFile vp
-                      console # B.log ("loading image " <> vpFile vp :: JSString)
-                      -- wait for image loaded
-                      jq (cast $ imageObj) >>= on "load" "" (\ () -> do
-                              console # B.log ("on-load" :: JSString)
-                              apply paint ()
-                              okToDraw # putMVar ())
+                      imageAnchor # "href" := vpFile vp
+                      -- wait till we've loaded the image
+                      imageLoad # takeMVar
+                      -- *THEN* paint
+                      apply paint ()
                  )
+                 (return ())
+
+              apply paint ()
+
               -- and go again
               console # B.log ("end of loop" :: JSString)
               return ()
@@ -193,58 +253,7 @@ prog = do
       -- null update, to do first redraw
       upModel $ return
 
-      return ()
 
-
-{-
-      jq "body" >>= on "click" ".click" (\ () -> do
-                the_id :: JSString <- jq (cast $ this) >>= invoke "attr" ("id" :: JSString)
-                o <- new "Object" ()
-                o # "id" := the_id
-                ch # writeChan o)
-
-
-      obj <- new "Object" ()
-      obj # attr "model" := (0 :: JSNumber)
-
-      -- This is using the imperative update to enable the
-      let slider :: JSNumber -> JSObject -> JSB JSObject
-          slider nm = invoke "slider"  ("value" :: JSString, nm)
-
-          update :: String -> JSNumber -> JSNumber -> JSNumber -> JSB ()
-          update nm val mn mx =
-              ifB ((val <=* mx) &&* (val >=* mn))
-                  (obj # attr nm := val)
-                  (return ())
-
-          switchB _   []         def = def
-          switchB tag ((a,b):xs) def = ifB (tag ==* a) b (switchB tag xs def)
-
-      fib <- fixJSA $ \ fib (n :: JSNumber) -> do
-          ifB (n <* 2)
-              (return (1 :: JSNumber))
-              (liftM2 (+) (apply fib (n - 1)) (apply fib (n - 2)))
-
-      loop () $ \() -> do
-          res <- ch # readChan
---          res <- wait "body" (slide <> click)
-          model <- evaluate (obj ! "model") :: JSB JSNumber
-
-          switchB (res ! "id" :: JSString)
-                  [ ("slider", update "model" (res ! "value") 0 25)
-                  , ("up"    , update "model" (model + 1)     0 25)
-                  , ("down"  , update "model" (model - 1)     0 25)
-                  , ("reset" , update "model" 0               0 25)
-                  ] $ return ()
-
-          model <- evaluate (obj ! "model") :: JSB JSNumber
-          jQuery "#slider"  >>= slider (cast model)
-          liftJS $ do
-                jQuery "#fib-out" >>= setHtml ("fib " <> cast model <> "...")
-                res <- apply fib model
-                jQuery "#fib-out" >>= setHtml ("fib " <> cast model <> " = " <> cast res)
-                return ()
--}
       return ()
 
 default(JSNumber, JSString, String)

@@ -86,6 +86,13 @@
                         min: 0,
                         max : 100
                 });
+
+                $("#myCanvas").draggable({cursor: "move", helper: "clone"}); // { cursor: "move", helper: clone});
+
+//                $("#myCanvas").on("drag",function(event,ui) { console.log(ui);
+//                              console.log(ui.offset);console.log(ui.position);console.log(ui.originalPosition);console.log('---'); });
+
+
 /*
       var canvas = document.getElementById('myCanvas');
       var context = canvas.getContext('2d');
