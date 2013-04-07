@@ -17,7 +17,7 @@ data-files:
     css/ui-lightness/images/*.png
 
 -- And the individual tests' index files.
-    html/index.html
+    html/view.html
 
 Extra-source-files:
     README.md

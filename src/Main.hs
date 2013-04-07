@@ -7,38 +7,18 @@ import Data.Semigroup ( (<>) )
 import Control.Monad
 import Data.Boolean
 import Data.Boolean.Numbers as N
-import Data.Proxy
 
 import Language.Sunroof
 import Language.Sunroof.Server
 import Language.Sunroof.Compiler
+import Language.Sunroof.TH
 import Language.Sunroof.JS.Canvas
 import Language.Sunroof.JS.Browser as B
 import Language.Sunroof.JS.JQuery
 import Network.Wai.Middleware.Static
 
-import TH
+import Types
 
-type  Slide2 = (JSString,JSNumber)
-
-$(jstuple ''Slide2)
-
-newtype Slide = Slide JSObject
-
-deriveX [d| instance Show Slide |]
-
-newtype JSX a = JSX JSObject
-
--- | Show the Javascript.
-deriveJSTuple [d|
---        instance (SunroofArgument o) => Show (JSX o)
---        instance (SunroofArgument o) => Sunroof (JSX o)
---        instance (SunroofArgument o) => IfB (JSX o)
-        instance (SunroofArgument o) => JSTuple (JSX o) where
-           type Internals (JSX o) = (JSString,JSNumber)
-        |]
-
-type instance BooleanOf (JSX o) = JSBool
 
 ourPolicy :: Policy -> Policy
 ourPolicy p = p
@@ -56,49 +36,6 @@ main = do
 
 
 
-instance Sunroof Slide where
-  box   = Slide . box
-  unbox (Slide o) = unbox o
-  typeOf _ = Base
-
-instance JSTuple Slide where
-  type Internals Slide = (JSString,JSNumber)
-  match o = (o ! "id", o ! "value")
-  tuple (id_,num) = do
-    o <- new "Object" ()
-    o # "id" := id_
-    o # "value" := num
-    return $ Slide o
-
-newtype JSViewPort = JSViewPort JSObject
-
-instance Sunroof JSViewPort where
-  box   = JSViewPort . box
-  unbox (JSViewPort o) = unbox o
-
-data ViewPort = ViewPort
-        { vpPage  :: JSNumber   -- page number, first page is page zero
-        , vpX     :: JSNumber
-        , vpY     :: JSNumber
-        , vpScale :: JSNumber   -- scale
-        }
-
-instance JSTuple JSViewPort where
-  type Internals JSViewPort = ViewPort
-  match o = ViewPort
-                { vpPage  = o ! "page"
-                , vpX     = o ! "x"
-                , vpY     = o ! "y"
-                , vpScale = o ! "scale"
-                }
-  tuple vp = do
-    o <- new "Object" ()
-    o # "page"  := vpPage  vp
-    o # "x"     := vpX     vp
-    o # "y"     := vpY     vp
-    o # "scale" := vpScale vp
-    return $ JSViewPort o
-
 -- how big do we scale our pdf picture, in dots per inch?
 dpi :: JSNumber
 dpi = 300
@@ -110,54 +47,103 @@ prog = do
       jq "body" >>= on "slide" ".slide" (\ (a :: JSObject, aux :: JSObject) -> do
                 the_id    :: JSString <- jq (cast $ this) >>= invoke "attr" ("id" :: JSString)
                 the_index :: JSNumber <- evaluate $ N.round (aux ! "value" :: JSNumber)
-                tuple (the_id,the_index) >>= \ (o :: Slide) -> ch # writeChan o)
+                tuple (Slide the_id the_index) >>= \ (o :: JSSlide) -> ch # writeChan o)
 
-      forkJS $ loop () $ \ () -> do
-        o :: Slide <- ch # readChan
-        let (the_id,aux) = match o
-        console # B.log ("Slide : " <> cast the_id <> " " <> cast aux :: JSString)
-        return ()
 
       -- channel of what to show on the graphical viewport
       viewportChan :: JSChan JSViewPort <- newChan
 
+      -- Here is the model
+      model :: JSModel <- tuple $ Model
+                { mPage  = 0
+                , mUID   = ""
+                , mX     = 400
+                , mY     = 100
+                , mScale = 2.0
+                }
 
-      -- global of the current viewer state
-      vp :: JSViewPort <- tuple $ ViewPort 0 400 100 2.0
-      viewerState :: JSMVar JSViewPort <- newMVar vp
+      modelChan :: JSChan (JSFunction JSModel JSModel) <- newChan
+
+      let upModel :: (SunroofThread t) => (Model -> JSA Model) -> JS t ()
+          upModel f = do
+                  g <- function (\ m -> do
+                                let jsm = match m
+                                jsm' <- f jsm
+                                tuple jsm')
+                  modelChan # writeChan g
+
+      forkJS $ loop model $ \ m -> do
+              up <- modelChan # readChan
+              console # B.log ("updateModel" :: JSString)
+              m' <- up $$ m
+              let jsm = match m'
+              -- and propogate the model
+              vp :: JSViewPort <- tuple $ ViewPort ("pages/exam.300-" <> cast (mPage jsm - 1) <> ".png") 400 100 2.0
+              viewportChan # writeChan vp
+              return m'
+
+      forkJS $ loop () $ \ () -> do
+        o :: JSSlide <- ch # readChan
+        let (Slide the_id aux) = match o
+        console # B.log ("Slide : " <> cast the_id <> " " <> cast aux :: JSString)
+        switch the_id [ ("page-slider", upModel $ \ jsm -> return $ jsm { mPage = aux })
+                      ]
+
+      return ()
 
 
+
+{-
       -- global state changers
       setPage :: JSContinuation JSNumber <- continuation $ \ (n :: JSNumber) -> do
+
               vp :: ViewPort <- (viewerState # takeMVar) >>= (return . match)
               let vp' = vp { vpPage = n }
               return ()
-
+-}
       -- The cached image, a non-connected DOM object, that is also an <img>
       imageObj :: JSObject <- new "Image" ()
 
       canvas <- document # getElementById("myCanvas")
       context <- canvas # getContext("2d")
 
-      drawViewPort <- continuation $ \ () -> do
+      okToDraw :: JSMVar () <- newMVar ()
+
+      forkJS $ loop () $ \ () -> do
+              console # B.log ("starting draw image loop" :: JSString)
+              -- First get the event
               o <- viewportChan # readChan
               let vp = match o
 
+              console # B.log ("waiting for ok To draw" :: JSString)
+              -- next, wait until you have permision to start drawing
+              okToDraw # takeMVar
+
+              console # B.log ("got ok To draw" :: JSString)
+
               -- figure out if we have the correct image loaded
-              -- TODO
+
+--              paint <- function
+
 
               -- load new image object
-              imageObj # src := "pages/exam.300-2.png";
+              imageObj # src := vpFile vp;
+              console # B.log ("loading image " <> vpFile vp :: JSString)
+
+              -- check imageObject.complete
 
               jq (cast $ imageObj) >>= on "load" "" (\ () -> do
-                        alert("loaded image")
-                        context # drawImageClip imageObj (400, 100) (2050, 1490) (0, 0) (960, 600))
+                      console # B.log ("on-load" :: JSString)
+--                        alert("loaded image")
+                      context # drawImageClip imageObj (400, 100) (2050, 1490) (0, 0) (960, 600)
+                      forkJS (okToDraw # putMVar ()))
 
+              -- and go again
+              console # B.log ("end of loop" :: JSString)
               return ()
 
-      forkJS (goto drawViewPort () :: JSB ())
-
-      viewportChan # writeChan vp
+--      vp :: JSViewPort <- tuple $ ViewPort "pages/exam.300-2.png" 400 100 2.0
+--      viewportChan # writeChan vp
 
       return ()
 
@@ -216,7 +202,7 @@ prog = do
 default(JSNumber, JSString, String)
 
 ----------------------------------------------------------------
-
+{-
 test1 :: forall o . JSTuple o => Proxy o -> IO ()
 test1 Proxy = do
         txt <- sunroofCompileJSA def "main" $ do
@@ -229,3 +215,4 @@ fn1 :: JSTuple o => o -> JS t o
 fn1 o = do
         o' <- tuple (match o)
         return o'
+-}
