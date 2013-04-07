@@ -42,6 +42,15 @@ dpi = 300
 
 prog :: JSA ()
 prog = do
+      -- set up the slider(s)
+
+      sequence [ do jq nm >>= invoke "slider" ("option" :: JSString,"min" :: JSString,minV :: JSNumber) :: JSA ()
+                    jq nm >>= invoke "slider" ("option" :: JSString,"max" :: JSString,maxV :: JSNumber) :: JSA ()
+               | (nm,minV,maxV) <- [("#page-slider",1,6)
+                                   ,("#scale-slider",0,100)
+                                   ]
+               ]
+
       -- set up the slider listener
       ch <- newChan
       jq "body" >>= on "slide" ".slide" (\ (a :: JSObject, aux :: JSObject) -> do
@@ -55,12 +64,16 @@ prog = do
 
       -- Here is the model
       model :: JSModel <- tuple $ Model
-                { mPage  = 0
+                { mPage  = 1
                 , mUID   = ""
                 , mX     = 400
                 , mY     = 100
                 , mScale = 2.0
                 }
+
+      -- set up the values
+--      sequence [ do jq nm >>= invoke "slider" ("option" :: JSString,"min" :: JSString,minV :: JSNumber) :: JSA ()
+--                    jq nm >>= invoke "slider" ("option" :: JSString,"value" :: JSString,val :: JSNumber) :: JSA ()
 
       modelChan :: JSChan (JSFunction JSModel JSModel) <- newChan
 
@@ -80,13 +93,35 @@ prog = do
               -- and propogate the model
               vp :: JSViewPort <- tuple $ ViewPort ("pages/exam.300-" <> cast (mPage jsm - 1) <> ".png") 400 100 2.0
               viewportChan # writeChan vp
+
+              -- Write the side boxes
+              jq("#page-slider-counter") >>= setHtml("" <> cast (mPage jsm) :: JSString)
+              -- Write the side boxes
+              let precision :: JSNumber -> JSB JSString
+                  precision n = ifB (n <* 1.0)
+                                    (n # invoke "toPrecision" (2 :: JSNumber))
+                                    (n # invoke "toPrecision" (3 :: JSNumber))
+
+              scale_txt :: JSString <- mScale jsm # precision
+
+              jq("#scale-slider-counter") >>= setHtml("" <> cast (scale_txt) :: JSString)
+
               return m'
+
+      let min_scaling, max_scaling :: JSNumber
+          min_scaling = 0.5
+          max_scaling = 5.0
+
+          -- 0 .. 100 => min .. max
+          scaling :: JSNumber -> JSNumber
+          scaling n = (n/100) * (max_scaling - min_scaling) + min_scaling
 
       forkJS $ loop () $ \ () -> do
         o :: JSSlide <- ch # readChan
         let (Slide the_id aux) = match o
         console # B.log ("Slide : " <> cast the_id <> " " <> cast aux :: JSString)
         switch the_id [ ("page-slider", upModel $ \ jsm -> return $ jsm { mPage = aux })
+                      , ("scale-slider", upModel $ \ jsm -> return $ jsm { mScale = scaling aux })
                       ]
 
       return ()
@@ -123,27 +158,40 @@ prog = do
 
               -- figure out if we have the correct image loaded
 
---              paint <- function
+              let scale = 1 / 3 -- vpScale vp
 
 
-              -- load new image object
-              imageObj # src := vpFile vp;
-              console # B.log ("loading image " <> vpFile vp :: JSString)
+              console # B.log ("scale " <> cast scale <> "(" <> cast (vpX vp + 960 / scale) <> "," <> cast (vpY vp + 600 / scale) <> ")" :: JSString)
 
-              -- check imageObject.complete
+              paint <- function $ \ () -> do
+                      context # drawImageClip imageObj (vpX vp, vpY vp)
+--                                                       (vpX vp + 960 / scale,vpY vp + 600 / scale)
+                                                       (2050,1490)
+                                                       (0, 0)
+                                                       (960, 600)
 
-              jq (cast $ imageObj) >>= on "load" "" (\ () -> do
-                      console # B.log ("on-load" :: JSString)
---                        alert("loaded image")
-                      context # drawImageClip imageObj (400, 100) (2050, 1490) (0, 0) (960, 600)
-                      forkJS (okToDraw # putMVar ()))
+              -- console # B.log ("internals : " <> cast (imageObj ! "complete" :: JSBool) :: JSString)
 
+              ifB ((imageObj ! src) ==* vpFile vp)
+                  (do -- is already loaded, so can just repaint
+                      apply paint ()
+                      okToDraw # putMVar ()
+                  )
+                  (do  -- need to reload image
+                      imageObj # src := vpFile vp
+                      console # B.log ("loading image " <> vpFile vp :: JSString)
+                      -- wait for image loaded
+                      jq (cast $ imageObj) >>= on "load" "" (\ () -> do
+                              console # B.log ("on-load" :: JSString)
+                              apply paint ()
+                              okToDraw # putMVar ())
+                 )
               -- and go again
               console # B.log ("end of loop" :: JSString)
               return ()
 
---      vp :: JSViewPort <- tuple $ ViewPort "pages/exam.300-2.png" 400 100 2.0
---      viewportChan # writeChan vp
+      -- null update, to do first redraw
+      upModel $ return
 
       return ()
 

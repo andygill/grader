@@ -47,10 +47,10 @@
       </div>
       <div class="span4" style="background-color: red">
         <table class="slider-table">
-        <tr><td>page</td> <td>1</td><td><div id="page-slider"  style="width: 200px" class="slide"></div></td></tr>
+        <tr><td>page</td> <td id="page-slider-counter">1</td><td><div id="page-slider"  style="width: 200px" class="slide"></div></td></tr>
         <tr><td>x</td>    <td>1</td><td><div id="x-slider"     style="width: 200px" class="slide"></div></td></tr>
         <tr><td>y</td>    <td>1</td><td><div id="y-slider"     style="width: 200px" class="slide"></div></td></tr>
-        <tr><td>scale</td><td>1</td><td><div id="scale-slider" style="width: 200px" class="slide"></div></td></tr>
+        <tr><td>scale</td><td id="scale-slider-counter">1</td><td><div id="scale-slider" style="width: 200px" class="slide"></div></td></tr>
         </table>
       </div>
 
@@ -82,7 +82,6 @@
                 $("button").button();
 
                 $( ".slide" ).slider({
-                        range: "min",
                         value: 0,
                         min: 0,
                         max : 100
