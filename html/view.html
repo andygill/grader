@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-    <head>
+  <head>
         <title>Grader Viewer</title>
         <script type="text/javascript" src="js/jquery.js"></script>
         <script type="text/javascript" src="js/jquery-json.js"></script>
@@ -26,54 +26,100 @@
                    border: 1px solid black;
                    margin-top: 20px;
            }
+          table.slider-table { margin: auto; }
+
+
            .slider-table td {
                    line-height: 1.5em;
+                   align: center;
                    padding-left: 5pt;
                    padding-right: 5pt;
-                   border: 1px solid black;
+--                   border: 1px solid black;
+           }
+           h5.title-bar {
+                   border-bottom: 1px solid #d0d0d0
            }
      </style>         
         
         
     </head>
-    <body>
+  <body>
 
     <div class="container">
       <div class="row">
-      <div class="span8">
-        <table class="slider-table">
-          <tr><td>page</td><td>1</td><td><div id="other-slider" style="width: 200px" class="slide"></div></td></tr>
-        </table>        
-      </div>
-      <div class="span4" style="background-color: red">
-        <table class="slider-table">
-        <tr><td>page</td> <td id="page-slider-counter">1</td><td><div id="page-slider"  style="width: 200px" class="slide"></div></td></tr>
-        <tr><td>x</td>    <td>1</td><td><div id="x-slider"     style="width: 200px" class="slide"></div></td></tr>
-        <tr><td>y</td>    <td>1</td><td><div id="y-slider"     style="width: 200px" class="slide"></div></td></tr>
-        <tr><td>scale</td><td id="scale-slider-counter">1</td><td><div id="scale-slider" style="width: 200px" class="slide"></div></td></tr>
-        </table>
+        <div class="span9">
+
+          <div class="row">
+
+            <div class="span7">
+              <div class="pagination pagination-mini">
+              <ul>
+              <li><a href="#">&laquo;</a></li>
+              <li><a href="#">1</a></li>
+              <li><a href="#">1</a></li>
+              <li><a href="#">1</a></li>
+              <li><a href="#">1</a></li>
+              <li><a href="#">1</a></li>
+              <li><a href="#">1</a></li>
+              <li><a href="#">&raquo;</a></li>
+              </ul>
+              </div>
+            </div>
+
+            <div class="span2">
+              <div class="pagination pagination-centered pagination-mini">
+                  <ul>
+                     <li><a href="#">&laquo;</a></li>
+                     <li><a href="#">18347573</a></li>
+                     <li><a href="#">&raquo;</a></li>
+                   </ul>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="row">
+            <div class="span9" style="border-top: 1px solid black">
+
+            </div>
+          </div>
+
+        </div>
+        <div class="span3">
+
+          <div class="well well-small" style="">
+            <div colspan=3 class="progress">
+                  <div class="bar" style="width: 60%;"></div>
+            </div>
+
+            <table class="slider-table">
+              <tr><td>scale</td><td><div id="scale-slider" style="width: 100px" class="slide"></div></td><td id="scale-slider-counter">1</td></tr>
+            </table>
+
+            <div class="pagination pagination-centered pagination-mini" style="margin-bottom: 0">
+                <ul>
+                   <li><a href="#">&laquo;</a></li>
+                   <li><a href="#">1</a></li>
+                   <li><a href="#">1</a></li>
+                   <li><a href="#">1</a></li>
+                   <li><a href="#">1</a></li>
+                   <li><a href="#">1</a></li>
+                   <li><a href="#">1</a></li>
+                   <li><a href="#">1</a></li>
+                   <li><a href="#">&raquo;</a></li>
+                 </ul>
+            </div>
+
+          </div>
+
+        </div>
       </div>
 
-      <div class="row-fluid">
-            <canvas id="myCanvas" width="960" height="600" style="border: 1px dashed black"></canvas>
+      <div class="row" style="padding-top: 0pt">
+            <canvas id="myCanvas" width="960" height="600" style="border: 0px; border-top: 1px dotted black;"></canvas>
       </div>
 
-    <HR>
-            
-            
-    <div align="center" style="border: 1px dashed; padding: 10px; display: inline-block; line-height: 3em;">
-
-      <button id="reset" class="click">Reset</button>
-      <button id="down" class="click">-1</button>
-      <button id="up" class="click">+1</button>
-      <br/>
-      <span id="fib-out" style="font-size: x-large;" class="click">fib 0 = 1</span>
-      <br/>
-      <div id="slider" style="width: 200px" class="slide"></div>
     </div>
-
-
-   </div>
 
         <script type="text/javascript">
             $(document).ready(function() {
@@ -87,23 +133,11 @@
                         max : 100
                 });
 
-                $("#myCanvas").draggable({cursor: "move", helper: "clone"}); // { cursor: "move", helper: clone});
+                $("#myCanvas").draggable({cursor: "move", helper: "clone", opacity: 0.1 }); // { cursor: "move", helper: clone});
+                $( "#tabs" ).tabs();
 
-//                $("#myCanvas").on("drag",function(event,ui) { console.log(ui);
-//                              console.log(ui.offset);console.log(ui.position);console.log(ui.originalPosition);console.log('---'); });
-
-
-/*
-      var canvas = document.getElementById('myCanvas');
-      var context = canvas.getContext('2d');
-      var imageObj = new Image();
-      $(imageObj).on("load",function() {
-        context.drawImage(imageObj, 400, 100, 2050, 1490, 0, 0, 960, 600);
-      });
-      imageObj.src = 'pages/exam.300-2.png';
-*/
 
             });
         </script>
-    </body>
+  </body>
 </html>
