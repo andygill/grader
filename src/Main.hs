@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, TypeFamilies, TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, TypeFamilies, TemplateHaskell, ViewPatterns #-}
 
 module Main where
 
@@ -13,6 +13,7 @@ import Language.Sunroof.Server
 import Language.Sunroof.Compiler
 import Language.Sunroof.TH
 import Language.Sunroof.JS.Canvas
+import Language.Sunroof.JS.Map
 import Language.Sunroof.JS.Browser as B
 import Language.Sunroof.JS.JQuery
 import Network.Wai.Middleware.Static
@@ -37,8 +38,11 @@ main = do
 
 
 -- how big do we scale our pdf picture, in dots per inch?
-dpi :: JSNumber
-dpi = 300
+imageDpi :: JSNumber
+imageDpi = 300
+
+monitorDpi :: JSNumber
+monitorDpi = 75
 
 
 mkSliderBar :: (Fractional n) => JSString -> n -> n -> n -> SliderBar n
@@ -69,18 +73,66 @@ setSlider :: SliderBar JSNumber -> JSNumber -> JS t ()
 setSlider (SliderBar nm _ _ fn) n = do
         jq nm >>= invoke "slider" ("option" :: JSString,"value" :: JSString,fn n :: JSNumber)
 
+
+newMenu :: (SunroofKey k) => JSString -> JS t (JSMenu k)
+newMenu dom_id = do
+        tbl <- newMap
+        lk  <- newMap
+        tuple (Menu dom_id tbl lk)
+
+addMenuItem :: (SunroofKey k) => k -> JSString -> JSMenu k -> JS t ()
+addMenuItem key val (match -> Menu dom_id tbl lk) = do
+       jq (dom_id) >>= append (cast ("<option>" <> val <> "</option>" :: JSString) :: JSObject)
+       tbl # insertMap val key
+       lk # insertMap key val
+
+-- Which item is selected right now, defaults to first
+whichMenuItem :: (SunroofKey k) => JSMenu k -> JS t k
+whichMenuItem (match -> Menu dom_id tbl lk) = do
+        txt :: JSString <- jq (dom_id <> " option:selected") >>= invoke "attr" ("value" :: JSString)
+        tbl # lookupMap txt
+
+selectMenuItem :: (SunroofKey k) => k -> JSMenu k -> JS t ()
+selectMenuItem k (match -> Menu dom_id tbl lk) = do
+        txt <- lk # lookupMap k
+        o <- jq dom_id
+        o :: JSObject <- o # invoke "val" (txt :: JSString)
+        o # invoke "attr" ("selected"::JSString,true::JSBool)
+--      $("#selectID").val( theValue ).attr('selected',true);
+
+
 prog :: JSA ()
 prog = do
       -- set up the slider(s)
 
-      let pageSlider  :: SliderBar JSNumber = mkSliderBar "#page-slider"  6   1   6
-      let scaleSlider :: SliderBar JSNumber = mkSliderBar "#scale-slider" 101 0.5 3
+      let pageSlider     :: SliderBar JSNumber = mkSliderBar "#page-slider"  6   1   6
+      let scaleSlider    :: SliderBar JSNumber = mkSliderBar "#scale-slider" 101 2   4
+      let questionSlider :: SliderBar JSNumber = mkSliderBar "#question-slider" 10  1   10
 
       initSlider pageSlider
       initSlider scaleSlider
+      initSlider questionSlider
+
+      pageMenu <- newMenu "#page-select"
+
+      ch <- newChan
+
+      pageDB <- new "Object" ()
+
+      sequence [ do pageMenu # addMenuItem (js n) ("Page #" <> cast (js n) :: JSString)
+               | n :: Int <- [1..6]
+               ]
+
+
+
+
+      -- $("#page-select option:selected").attr("id")
+
+--      var theValue = "whatever";
+--      $("#selectID").val( theValue ).attr('selected',true);
+
 
       -- set up the slider listener
-      ch <- newChan
       jq "body" >>= on "slide" ".slide" (\ (a :: JSObject, aux :: JSObject) -> do
                 the_id    :: JSString <- jq (cast $ this) >>= invoke "attr" ("id" :: JSString)
                 the_index :: JSNumber <- evaluate $ N.round (aux ! "value" :: JSNumber)
@@ -116,7 +168,8 @@ prog = do
 
       -- Here is the model
       let model = Model
-                { mPage  = 3
+                { mQuestion = 1
+                , mPage  = 3
                 , mUID   = ""
                 , mX     = 400
                 , mY     = 100
@@ -154,6 +207,8 @@ prog = do
               -- Write the side boxes and sliders
               jq("#page-slider-counter") >>= setHtml("" <> cast (mPage jsm) :: JSString)
               setSlider pageSlider (mPage jsm)
+--              jq(("#page-select") >>= invoke "val" ( pageDB ! mPage jsm ).attr('selected',true);
+
 
               let precision :: JSNumber -> JSB JSString
                   precision n = ifB (n <* 1.0)
@@ -164,15 +219,11 @@ prog = do
 
               jq("#scale-slider-counter") >>= setHtml("" <> cast (scale_txt) :: JSString)
               setSlider scaleSlider (mScale jsm)
+
+              jq("#question-slider-counter") >>= setHtml("" <> cast (mQuestion jsm) :: JSString)
+              setSlider questionSlider (mQuestion jsm)
+
               return m'
-
-      let min_scaling, max_scaling :: JSNumber
-          min_scaling = 0.5
-          max_scaling = 5.0
-
-          -- 0 .. 100 => min .. max
-          scaling :: JSNumber -> JSNumber
-          scaling n = (n/100) * (max_scaling - min_scaling) + min_scaling
 
       -- listen on sliders
       forkJS $ loop () $ \ () -> do
@@ -185,6 +236,7 @@ prog = do
                                                                         , mScale = mScale model
                                                                         })
                       , ("scale-slider", upModel $ \ jsm -> return $ jsm { mScale = fnSliderBar scaleSlider aux })
+                      , ("question-slider", upModel $ \ jsm -> return $ jsm { mQuestion = fnSliderBar questionSlider aux })
                       ]
 
       -- listen of drags
@@ -192,7 +244,12 @@ prog = do
         o :: JSDrag <- dragCh # readChan
         let (Drag dx dy) = match o
         console # B.log ("Drag : " <> cast dx <> " " <> cast dy :: JSString)
-        upModel $ \ jsm -> return $ jsm { mX = mX jsm - mScale jsm * dx, mY = mY jsm - mScale jsm * dy }
+        upModel $ \ jsm -> return $ jsm { mX = mX jsm - dx / ((monitorDpi / imageDpi) * mScale jsm), mY = mY jsm - dy / ((monitorDpi / imageDpi) * mScale jsm) }
+
+
+
+
+
 
       return ()
 
@@ -229,7 +286,7 @@ prog = do
 
               -- figure out if we have the correct image loaded
 
-              let scale = vpScale vp :: JSNumber-- vpScale vp
+              let scale = (monitorDpi / imageDpi) * vpScale vp :: JSNumber-- vpScale vp
 
               console # B.log ("scale " <> cast scale :: JSString)
 
@@ -246,8 +303,8 @@ prog = do
                           startX = boundX $ vpX vp
                           startY = boundY $ vpY vp
 
-                          endX = boundX $ vpX vp + 960 * scale
-                          endY = boundY $ vpY vp + 600 * scale
+                          endX = boundX $ vpX vp + 960 / scale
+                          endY = boundY $ vpY vp + 600 / scale
 
                       context # drawImageClip imageObj (startX,startY)
                                                        (endX - startX,endY - startY)
@@ -279,26 +336,36 @@ prog = do
               console # B.log ("end of loop" :: JSString)
               return ()
 
+      -- read the changes in menu
+
+      jq "body" >>= on "change" ".change" (\ (a :: JSObject, aux :: JSObject) -> do
+                the_id    :: JSString <- jq (cast $ this) >>= invoke "attr" ("id" :: JSString)
+                console # B.log ("change:" :: JSString)
+                console # B.log (the_id)
+                sub_id    :: JSString <- jq ("#" <> the_id <> " option:selected") >>= invoke "attr" ("value" :: JSString)
+                console # B.log (sub_id)
+
+                n :: JSNumber <- evaluate $ pageDB ! label sub_id
+
+                upModel $ \ jsm -> return $ jsm { mPage  = n
+                                                , mX     = mX model
+                                                , mY     = mY model
+                                                , mScale = mScale model
+                                                }
+
+                -- Now we have a name and a inside to the name
+
+--              the_index :: JSNumber <- evaluate $ N.round (aux ! "value" :: JSNumber)
+--              tuple (Slide the_id the_index) >>= \ (o :: JSSlide) -> ch # writeChan o
+--              console # B.log (the_index)
+          )
+
+
+
       -- null update, to do first redraw
       upModel $ return
-
 
       return ()
 
 default(JSNumber, JSString, String)
 
-----------------------------------------------------------------
-{-
-test1 :: forall o . JSTuple o => Proxy o -> IO ()
-test1 Proxy = do
-        txt <- sunroofCompileJSA def "main" $ do
-                o :: o <- liftM cast $ new "Test" ()
-                o' <- fn1 o
-                alert(cast o' :: JSString)
-        putStrLn txt
-
-fn1 :: JSTuple o => o -> JS t o
-fn1 o = do
-        o' <- tuple (match o)
-        return o'
--}
