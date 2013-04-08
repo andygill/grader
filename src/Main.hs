@@ -40,16 +40,44 @@ main = do
 dpi :: JSNumber
 dpi = 300
 
+
+mkSliderBar :: (Fractional n) => JSString -> n -> n -> n -> SliderBar n
+mkSliderBar name res mn mx = SliderBar name res fn inv_fn
+  where
+      fn     x = x * ((mx - mn) / (res - 1)) + mn
+      inv_fn x = (x - mn) * (res - 1) / (mx - mn)
+
+data SliderBar n = SliderBar JSString n (n -> n) (n -> n)
+
+fnSliderBar :: SliderBar n -> n -> n
+fnSliderBar (SliderBar _ _ fn _) = fn
+
+invFnSliderBar :: SliderBar n -> n -> n
+invFnSliderBar (SliderBar _ _ _ fn) = fn
+
+test1 :: SliderBar Float
+test1 = mkSliderBar "X" 101 0.5 3
+
+initSlider :: SliderBar JSNumber -> JS t ()
+initSlider (SliderBar nm mx _ _) = do
+        () <- jq nm >>= invoke "slider" ("option" :: JSString,"min" :: JSString,0      :: JSNumber)
+        () <- jq nm >>= invoke "slider" ("option" :: JSString,"max" :: JSString,mx - 1 :: JSNumber)
+        () <- jq nm >>= invoke "slider" ("option" :: JSString,"value" :: JSString,0    :: JSNumber)
+        return ()
+
+setSlider :: SliderBar JSNumber -> JSNumber -> JS t ()
+setSlider (SliderBar nm _ _ fn) n = do
+        jq nm >>= invoke "slider" ("option" :: JSString,"value" :: JSString,fn n :: JSNumber)
+
 prog :: JSA ()
 prog = do
       -- set up the slider(s)
 
-      sequence [ do jq nm >>= invoke "slider" ("option" :: JSString,"min" :: JSString,minV :: JSNumber) :: JSA ()
-                    jq nm >>= invoke "slider" ("option" :: JSString,"max" :: JSString,maxV :: JSNumber) :: JSA ()
-               | (nm,minV,maxV) <- [("#page-slider",1,6)
-                                   ,("#scale-slider",0,100)
-                                   ]
-               ]
+      let pageSlider  :: SliderBar JSNumber = mkSliderBar "#page-slider"  6   1   6
+      let scaleSlider :: SliderBar JSNumber = mkSliderBar "#scale-slider" 101 0.5 3
+
+      initSlider pageSlider
+      initSlider scaleSlider
 
       -- set up the slider listener
       ch <- newChan
@@ -123,9 +151,10 @@ prog = do
                                    (mScale jsm)
               viewportChan # writeChan vp
 
-              -- Write the side boxes
+              -- Write the side boxes and sliders
               jq("#page-slider-counter") >>= setHtml("" <> cast (mPage jsm) :: JSString)
-              -- Write the side boxes
+              setSlider pageSlider (mPage jsm)
+
               let precision :: JSNumber -> JSB JSString
                   precision n = ifB (n <* 1.0)
                                     (n # invoke "toPrecision" (2 :: JSNumber))
@@ -134,7 +163,7 @@ prog = do
               scale_txt :: JSString <- mScale jsm # precision
 
               jq("#scale-slider-counter") >>= setHtml("" <> cast (scale_txt) :: JSString)
-
+              setSlider scaleSlider (mScale jsm)
               return m'
 
       let min_scaling, max_scaling :: JSNumber
@@ -150,12 +179,12 @@ prog = do
         o :: JSSlide <- ch # readChan
         let (Slide the_id aux) = match o
         console # B.log ("Slide : " <> cast the_id <> " " <> cast aux :: JSString)
-        switch the_id [ ("page-slider", upModel $ \ jsm -> return $ jsm { mPage  = aux
+        switch the_id [ ("page-slider", upModel $ \ jsm -> return $ jsm { mPage  = fnSliderBar pageSlider aux
                                                                         , mX     = mX model
                                                                         , mY     = mY model
                                                                         , mScale = mScale model
                                                                         })
-                      , ("scale-slider", upModel $ \ jsm -> return $ jsm { mScale = scaling aux })
+                      , ("scale-slider", upModel $ \ jsm -> return $ jsm { mScale = fnSliderBar scaleSlider aux })
                       ]
 
       -- listen of drags
