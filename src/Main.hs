@@ -201,17 +201,17 @@ prog = do
       -------------------------------------------------
       -- Setup the menus
       -------------------------------------------------
-      sel :: JSSelect JSString <- newSelect "which-question"
+      question :: JSSelect JSString <- newSelect "which-question"
 
-      sel # insertOption "1a" "1(a)"
-      sel # insertOption "1b" "1(b)"
-      sel # insertOption "1c" "1(c)"
+      question # insertOption "1a" "1(a)"
+      question # insertOption "1b" "1(b)"
+      question # insertOption "1c" "1(c)"
 
       arr :: JSArray JSString <- array ["1a","1b","1c" :: String]
 
-      sel # drawSelect arr
+      question # drawSelect arr
 
-      sel # addCallback (\ k -> upModel $ \ jsm -> return $ jsm { mQuestion = k })
+      question # addCallback (\ k -> upModel $ \ jsm -> return $ jsm { mQuestion = k })
 
       page :: JSSelect JSNumber <- newSelect "which-page"
 
@@ -262,9 +262,11 @@ prog = do
 --              setSlider pageSlider (mPage jsm)
 --              jq(("#page-select") >>= invoke "val" ( pageDB ! mPage jsm ).attr('selected',true);
 
-              jq ("#which-page li") >>= removeClass ("active")
-              kId <- page # idSelect (mPage jsm)
-              jq ("#which-page" <> " #" <> kId) >>= invoke "parent" () >>= addClass("active")
+              page # clearSelect
+              page # activeSelect (mPage jsm)
+--              jq ("#which-page li") >>= removeClass ("active")
+--              kId <- page # idSelect (mPage jsm)
+--              jq ("#which-page" <> " #" <> kId) >>= invoke "parent" () >>= addClass("active")
 
 
               let precision :: JSNumber -> JSB JSString
@@ -279,13 +281,17 @@ prog = do
 
 
               -- Set the question
+              question # clearSelect
+              question # activeSelect (mQuestion jsm)
+
               () <- jq("#marking-sheet") >>= invoke "scrollTop" (0 :: JSNumber)
               o1 :: JSObject <- jq ("#marking-sheet #q-" <> mQuestion jsm) >>= invoke "position" ()
-              console # B.log("marking: " <> cast (o1 ! attr "top" :: JSNumber) :: JSString)
+--              console # B.log("marking: " <> cast (o1 ! attr "top" :: JSNumber) :: JSString)
               o2 :: JSObject <- jq ("#marking-sheet h4") >>= invoke "position" ()
-              console # B.log("marking: " <> cast (o2 ! attr "top" :: JSNumber) :: JSString)
+--              console # B.log("marking: " <> cast (o2 ! attr "top" :: JSNumber) :: JSString)
               offset :: JSNumber <- evaluate $ (o1 ! attr "top") - (o2 ! attr "top")
               () <- jq ("#marking-sheet") >>= invoke "scrollTop" offset
+
 
               return m'
 

@@ -93,11 +93,16 @@ idSelect k (match -> sel) = do
         idNo :: JSNumber <- selectMap sel # M.lookup k
         evaluate $ lookup' idNo (selectIds sel)
 
-setClass :: k -> String -> JS t ()
-setClass = undefined
+-- should be build into the object
+clearSelect :: (SunroofKey k) => JSSelect k -> JS t ()
+clearSelect (match -> sel) = do
+  jq ("#" <> selectId sel <>" li") >>= removeClass ("active")
 
-resetClass :: k -> String -> JS t ()
-resetClass = undefined
+-- should be build into the object
+activeSelect :: (SunroofKey k) => k -> JSSelect k -> JS t ()
+activeSelect k jssel@(match -> sel) = do
+  kId <- jssel # idSelect k
+  jq ("#" <> selectId sel <> " #" <> kId) >>= invoke "parent" () >>= addClass("active")
 
 -- This gets called each time an option gets selected/clicked
 addCallback :: (SunroofKey k) => (k -> JSB ()) -> JSSelect k -> JS t ()
