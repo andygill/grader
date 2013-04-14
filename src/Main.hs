@@ -106,6 +106,7 @@ prog = do
       fatal <- function $ \ (a::JSObject,b::JSObject,c::JSObject,f::JSFunction () ()) ->
                                 -- This should be a command line thing
 --                                B.alert("FAILURE" <> cast a <> cast b <> cast c)
+                                return ()
       () <- fun "$.kc.failure"  `apply` fatal
 
 
@@ -172,7 +173,7 @@ prog = do
 
       -- Here is the model
       let model = Model
-                { mQuestion = 1
+                { mQuestion = "0"
                 , mPage  = 3
                 , mUID   = ""
                 , mX     = 400
@@ -194,6 +195,7 @@ prog = do
       forkJS $ loop jsModel $ \ m -> do
               up <- modelChan # readChan
               console # B.log ("updateModel" :: JSString)
+              let jsm0 = match m
               m' <- up $$ m
               let jsm = match m'
               -- Display the model
@@ -224,8 +226,15 @@ prog = do
               jq("#scale-slider-counter") >>= setHtml("" <> cast (scale_txt) :: JSString)
               setSlider scaleSlider (mScale jsm)
 
-              jq("#question-slider-counter") >>= setHtml("" <> cast (mQuestion jsm) :: JSString)
-              setSlider questionSlider (mQuestion jsm)
+
+              -- Set the question
+              () <- jq("#marking-sheet") >>= invoke "scrollTop" (0 :: JSNumber)
+              o1 :: JSObject <- jq ("#marking-sheet #q-" <> mQuestion jsm) >>= invoke "position" ()
+              console # B.log("marking: " <> cast (o1 ! attr "top" :: JSNumber) :: JSString)
+              o2 :: JSObject <- jq ("#marking-sheet h4") >>= invoke "position" ()
+              console # B.log("marking: " <> cast (o2 ! attr "top" :: JSNumber) :: JSString)
+              offset :: JSNumber <- evaluate $ (o1 ! attr "top") - (o2 ! attr "top")
+              () <- jq ("#marking-sheet") >>= invoke "scrollTop" offset
 
               return m'
 
@@ -240,7 +249,7 @@ prog = do
                                                                         , mScale = mScale model
                                                                         })
                       , ("scale-slider", upModel $ \ jsm -> return $ jsm { mScale = fnSliderBar scaleSlider aux })
-                      , ("question-slider", upModel $ \ jsm -> return $ jsm { mQuestion = fnSliderBar questionSlider aux })
+--                      , ("question-slider", upModel $ \ jsm -> return $ jsm { mQuestion = fnSliderBar questionSlider aux })
                       ]
 
       -- listen of drags
@@ -381,7 +390,7 @@ prog = do
 
       sel # drawSelect arr
 
-      sel # addCallback (\ k -> alert(cast k))
+      sel # addCallback (\ k -> upModel $ \ jsm -> return $ jsm { mQuestion = k })
 
       console # B.log ("done sel" :: JSString)
 

@@ -42,7 +42,7 @@ deriveJSTuple
 newtype JSModel = JSModel JSObject
 
 data Model = Model
-        { mQuestion :: JSNumber  --
+        { mQuestion :: JSString  -- The currently selected question number, always at least one selected
         , mPage  :: JSNumber     -- Page number of the exam (starts at 1)
         , mUID   :: JSString     -- Text of the UID
 --        , mUDB   :: JSObject     -- Map from mUID Strings to
