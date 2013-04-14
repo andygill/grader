@@ -40,7 +40,7 @@ newSelect name = do
                 let str :: JSString
                     str = "<li>"
                        <> "<a class=\"click\" id=\""
-                       <> "#" <> name <> "-" <> cast kId
+                       <> name <> "-" <> cast kId
                        <> "\">"
                        <> val
                        <> "</a></li>"
@@ -83,6 +83,16 @@ drawSelect = invoke "selectRender"
 --        arr (match -> sel) =
 --        selectRender sel $$ arr
 
+keysSelect :: (SunroofKey k) => JSSelect k -> JS t (JSArray k)
+keysSelect (match -> sel) =
+        -- techincally, this should clone the array
+        evaluate $ selectMap_1 sel
+
+idSelect :: (SunroofKey k) => k -> JSSelect k -> JS t JSString
+idSelect k (match -> sel) = do
+        idNo :: JSNumber <- selectMap sel # M.lookup k
+        evaluate $ lookup' idNo (selectIds sel)
+
 setClass :: k -> String -> JS t ()
 setClass = undefined
 
@@ -95,14 +105,12 @@ addCallback callback (match -> sel) = do
       jq ("#" <> selectId sel) >>= on "click" ".click" (\ (a :: JSObject, aux :: JSObject) -> do
               the_id    :: JSString <- jq (cast $ this) >>= invoke "attr" ("id" :: JSString)
 
-              the_id' :: JSString <- the_id # substr 1  -- remove the "#" from the front
-
               let toJSON :: (Sunroof o) => o -> JS t JSString
                   toJSON x = fun "$.toJSON" $$ x
 
               txt <- toJSON (selectIds_1 sel)
 
-              kId <- selectIds_1 sel # M.lookup the_id'
+              kId <- selectIds_1 sel # M.lookup the_id
 
               k <- evaluate $ lookup' kId (selectMap_1 sel)
 

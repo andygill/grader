@@ -103,9 +103,9 @@ selectMenuItem k (match -> Menu dom_id tbl lk) = do
 
 prog :: JSA ()
 prog = do
-      fatal <- function $ \ (a::JSObject,b::JSObject,c::JSObject,f::JSFunction () ()) ->
+      fatal <- function $ \ (a::JSObject,b::JSObject,c::JSObject,f::JSFunction () ()) -> do
                                 -- This should be a command line thing
---                                B.alert("FAILURE" <> cast a <> cast b <> cast c)
+                                B.alert("FAILURE" <> cast a <> cast b <> cast c)
                                 return ()
       () <- fun "$.kc.failure"  `apply` fatal
 
@@ -192,6 +192,53 @@ prog = do
                                 tuple jsm')
                   modelChan # writeChan g
 
+---------------------------------------------------------------------------------
+--      Painting the screen
+---------------------------------------------------------------------------------
+
+      console # B.log ("starting sel" :: JSString)
+
+      -------------------------------------------------
+      -- Setup the menus
+      -------------------------------------------------
+      sel :: JSSelect JSString <- newSelect "which-question"
+
+      sel # insertOption "1a" "1(a)"
+      sel # insertOption "1b" "1(b)"
+      sel # insertOption "1c" "1(c)"
+
+      arr :: JSArray JSString <- array ["1a","1b","1c" :: String]
+
+      sel # drawSelect arr
+
+      sel # addCallback (\ k -> upModel $ \ jsm -> return $ jsm { mQuestion = k })
+
+      page :: JSSelect JSNumber <- newSelect "which-page"
+
+      sequence_ [ page # insertOption (js $ n) (js $ show n)
+                | n <- [1..6] :: [Int]
+                ]
+
+      -- draw *all* the buttons
+      arr <- page # keysSelect
+      page # drawSelect arr
+
+      page # addCallback (\ k -> upModel $ \ jsm -> return $ jsm { mPage = k })
+
+      console # B.log ("done sel" :: JSString)
+
+
+---------------------------------------------------------------------------------
+--      Updating the model
+---------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
       forkJS $ loop jsModel $ \ m -> do
               up <- modelChan # readChan
               console # B.log ("updateModel" :: JSString)
@@ -211,9 +258,13 @@ prog = do
               viewportChan # writeChan vp
 
               -- Write the side boxes and sliders
-              jq("#page-slider-counter") >>= setHtml("" <> cast (mPage jsm) :: JSString)
-              setSlider pageSlider (mPage jsm)
+--              jq("#page-slider-counter") >>= setHtml("" <> cast (mPage jsm) :: JSString)
+--              setSlider pageSlider (mPage jsm)
 --              jq(("#page-select") >>= invoke "val" ( pageDB ! mPage jsm ).attr('selected',true);
+
+              jq ("#which-page li") >>= removeClass ("active")
+              kId <- page # idSelect (mPage jsm)
+              jq ("#which-page" <> " #" <> kId) >>= invoke "parent" () >>= addClass("active")
 
 
               let precision :: JSNumber -> JSB JSString
@@ -377,22 +428,6 @@ prog = do
 
 
 
-      console # B.log ("starting sel" :: JSString)
-
-      -- New hacking
-      sel :: JSSelect JSString <- newSelect "which-question"
-
-      sel # insertOption "1a" "1(a)"
-      sel # insertOption "1b" "1(b)"
-      sel # insertOption "1c" "1(c)"
-
-      arr :: JSArray JSString <- array ["1a","1b","1c" :: String]
-
-      sel # drawSelect arr
-
-      sel # addCallback (\ k -> upModel $ \ jsm -> return $ jsm { mQuestion = k })
-
-      console # B.log ("done sel" :: JSString)
 
       -- null update, to do first redraw
       upModel $ return
