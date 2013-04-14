@@ -13,13 +13,13 @@ import Language.Sunroof.Server
 import Language.Sunroof.Compiler
 import Language.Sunroof.TH
 import Language.Sunroof.JS.Canvas
-import Language.Sunroof.JS.Map
+import Language.Sunroof.JS.Map as M
 import Language.Sunroof.JS.Browser as B
 import Language.Sunroof.JS.JQuery
 import Network.Wai.Middleware.Static
 
 import Types
-
+import Select
 
 ourPolicy :: Policy -> Policy
 ourPolicy p = p
@@ -83,18 +83,18 @@ newMenu dom_id = do
 addMenuItem :: (SunroofKey k) => k -> JSString -> JSMenu k -> JS t ()
 addMenuItem key val (match -> Menu dom_id tbl lk) = do
        jq (dom_id) >>= append (cast ("<option>" <> val <> "</option>" :: JSString) :: JSObject)
-       tbl # insertMap val key
-       lk # insertMap key val
+       tbl # M.insert val key
+       lk # M.insert key val
 
 -- Which item is selected right now, defaults to first
 whichMenuItem :: (SunroofKey k) => JSMenu k -> JS t k
 whichMenuItem (match -> Menu dom_id tbl lk) = do
         txt :: JSString <- jq (dom_id <> " option:selected") >>= invoke "attr" ("value" :: JSString)
-        tbl # lookupMap txt
+        tbl # M.lookup txt
 
 selectMenuItem :: (SunroofKey k) => k -> JSMenu k -> JS t ()
 selectMenuItem k (match -> Menu dom_id tbl lk) = do
-        txt <- lk # lookupMap k
+        txt <- lk # M.lookup k
         o <- jq dom_id
         o :: JSObject <- o # invoke "val" (txt :: JSString)
         o # invoke "attr" ("selected"::JSString,true::JSBool)
@@ -103,10 +103,16 @@ selectMenuItem k (match -> Menu dom_id tbl lk) = do
 
 prog :: JSA ()
 prog = do
+      fatal <- function $ \ (a::JSObject,b::JSObject,c::JSObject,f::JSFunction () ()) ->
+                                -- This should be a command line thing
+--                                B.alert("FAILURE" <> cast a <> cast b <> cast c)
+      () <- fun "$.kc.failure"  `apply` fatal
+
+
       -- set up the slider(s)
 
       let pageSlider     :: SliderBar JSNumber = mkSliderBar "#page-slider"  6   1   6
-      let scaleSlider    :: SliderBar JSNumber = mkSliderBar "#scale-slider" 101 2   4
+      let scaleSlider    :: SliderBar JSNumber = mkSliderBar "#scale-slider" 101 2   50
       let questionSlider :: SliderBar JSNumber = mkSliderBar "#question-slider" 10  1   10
 
       initSlider pageSlider
@@ -122,8 +128,6 @@ prog = do
       sequence [ do pageMenu # addMenuItem (js n) ("Page #" <> cast (js n) :: JSString)
                | n :: Int <- [1..6]
                ]
-
-
 
 
       -- $("#page-select option:selected").attr("id")
@@ -277,6 +281,8 @@ prog = do
       canvas <- document # getElementById("myCanvas")
       context <- canvas # getContext("2d")
 
+--      alert("width " <> cast (canvas ! "width" :: JSNumber))
+
 
       forkJS $ loop () $ \ () -> do
               console # B.log ("starting draw image loop" :: JSString)
@@ -361,6 +367,23 @@ prog = do
           )
 
 
+
+      console # B.log ("starting sel" :: JSString)
+
+      -- New hacking
+      sel :: JSSelect JSString <- newSelect "which-question"
+
+      sel # insertOption "1a" "1(a)"
+      sel # insertOption "1b" "1(b)"
+      sel # insertOption "1c" "1(c)"
+
+      arr :: JSArray JSString <- array ["1a","1b","1c" :: String]
+
+      sel # drawSelect arr
+
+      sel # addCallback (\ k -> alert(cast k))
+
+      console # B.log ("done sel" :: JSString)
 
       -- null update, to do first redraw
       upModel $ return
