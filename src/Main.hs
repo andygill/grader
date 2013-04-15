@@ -206,11 +206,34 @@ prog = do
       question # insertOption "0" "&laquo;"
 
       question # insertOption "1" "1"
-      question # insertOption "1b" "1(b)"
-      question # insertOption "1c" "1(c)"
+
+      question # insertOption "2a" "2a"
+      question # insertOption "2b" "2b"
+      question # insertOption "2c" "2c"
+      question # insertOption "2d" "2d"
+
+      question # insertOption "3-1" "3.1"
+      question # insertOption "3-2" "3.2"
+
+      question # insertOption "4a" "4a"
+      question # insertOption "4b" "4b"
+      question # insertOption "4c" "4c"
+
+      question # insertOption "5-1" "5.1"
+      question # insertOption "5-2" "5.2"
+
+      question # insertOption "6a" "6a"
+      question # insertOption "6b" "6b"
+      question # insertOption "6c" "6c"
+
+      question # insertOption "total" "&raquo;"
 
       arr <- question # keysSelect
       question # drawSelect arr
+      arr # forEach (\ k -> do
+             txt <- question # idSelect k
+             jq ("#" <> txt) >>= addClass("btn-mini")
+           )
 
       question # addCallback (\ k -> upModel $ \ jsm -> return $ jsm { mQuestion = k })
 
@@ -223,8 +246,25 @@ prog = do
       -- draw *all* the buttons
       arr <- page # keysSelect
       page # drawSelect arr
+      arr # forEach (\ k -> do
+             txt <- page # idSelect k
+             jq ("#" <> txt) >>= addClass("btn-mini")
+           )
+
 
       page # addCallback (\ k -> upModel $ \ jsm -> return $ jsm { mPage = k })
+
+      kuidMenu :: JSSelect JSString <- newSelect "kuid-menu"
+
+      kuidMenu  # insertOption "1" "1"
+      kuidMenu  # insertOption "2" "2"
+      kuidMenu  # insertOption "3" "3"
+
+      arr <- kuidMenu # keysSelect
+      kuidMenu # drawSelect arr
+
+      kuidMenu # addCallback (\ k -> alert (cast k))
+
 
       console # B.log ("done sel" :: JSString)
 
@@ -256,6 +296,12 @@ prog = do
 
       answer_ids :: JSArray JSObject <- jq (".answer-ABCD") >>= invoke "get" ()
       answer_ids # forEach (newAnswer ["A","B","C","D"] True)
+
+      answer_ids :: JSArray JSObject <- jq (".answer-5") >>= invoke "get" ()
+      answer_ids # forEach (newAnswer (map show [0..5::Int]) False)
+
+      answer_ids :: JSArray JSObject <- jq (".answer-3") >>= invoke "get" ()
+      answer_ids # forEach (newAnswer (map show [0..3::Int]) False)
 
 --     jq (".answer.truefalse") >>= each
 
@@ -328,7 +374,7 @@ prog = do
               o2 :: JSObject <- jq ("#marking-sheet h4") >>= invoke "position" ()
 --              console # B.log("marking: " <> cast (o2 ! attr "top" :: JSNumber) :: JSString)
               offset :: JSNumber <- evaluate $ (o1 ! attr "top") - (o2 ! attr "top")
-              () <- jq ("#marking-sheet") >>= invoke "scrollTop" (offset + 10)
+              () <- jq ("#marking-sheet") >>= invoke "scrollTop" (offset + 5)
 
 
               return m'

@@ -33,18 +33,30 @@ newSelect name = do
   render <- function $ \ arr -> do
         console # B.log ("render backcall : " <> cast (arr ! length') :: JSString)
 
+        tagName :: JSString <- jq ("#" <> name) >>= invoke "prop" ("tagName" :: JSString)
+
         jq ("#" <> name) >>= setHtml ("")
         arr # forEach (\ k -> do
                 kId :: JSNumber <- key_fm # M.lookup k
                 val :: JSString <- evaluate $ SR.lookup' kId txt_arr
-                let str :: JSString
-                    str = "<button class=\"btn click\" id=\""
+                let str_div :: JSString
+                    str_div = "<button class=\"btn click\" id=\""
                        <> name <> "-" <> cast kId
                        <> "\">"
                        <> val
                        <> "</button>"
 
-                jq ("#" <> name) >>= append (cast str)
+                let str_select :: JSString
+                    str_select = "<option value=\""
+                       <> name <> "-" <> cast kId
+                       <> "\">"
+                       <> val
+                       <> "</option>"
+
+                jq ("#" <> name) >>= append (cast $
+                                ifB (tagName ==* "SELECT")
+                                    (str_select)
+                                    (str_div))
 
                 return ())
 
@@ -109,10 +121,15 @@ addCallback callback (match -> sel) = do
       jq ("#" <> selectId sel) >>= on "click" ".click" (\ (a :: JSObject, aux :: JSObject) -> do
               the_id    :: JSString <- jq (cast $ this) >>= invoke "attr" ("id" :: JSString)
 
-              let toJSON :: (Sunroof o) => o -> JS t JSString
-                  toJSON x = fun "$.toJSON" $$ x
+              kId <- selectIds_1 sel # M.lookup the_id
 
-              txt <- toJSON (selectIds_1 sel)
+              k <- evaluate $ lookup' kId (selectMap_1 sel)
+
+              callback k
+           )
+
+      jq ("#" <> selectId sel) >>= on "change" "" (\ (a :: JSObject, aux :: JSObject) -> do
+              the_id :: JSString <- jq ("#" <> selectId sel <> " option:selected") >>= invoke "attr" ("value" :: JSString)
 
               kId <- selectIds_1 sel # M.lookup the_id
 
@@ -120,6 +137,12 @@ addCallback callback (match -> sel) = do
 
               callback k
            )
+
+--              let toJSON :: (Sunroof o) => o -> JS t JSString
+--                  toJSON x = fun "$.toJSON" $$ x
+--
+--              txt <- toJSON (selectIds_1 sel)
+
 --                the_index :: JSNumber <- evaluate $ N.round (aux ! "value" :: JSNumber)
 --                tuple (Slide the_id the_index) >>= \ (o :: JSSlide) -> ch # writeChan o)
 
