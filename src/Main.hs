@@ -5,6 +5,10 @@ module Main where
 import Data.Default ( Default(..) )
 import Data.Semigroup ( (<>), mconcat )
 import Control.Monad
+import System.IO
+import System.IO.Error
+import Control.Exception hiding (evaluate)
+import Data.Char
 import Data.Boolean
 import Data.Boolean.Numbers as N
 
@@ -18,6 +22,8 @@ import Language.Sunroof.JS.Browser as B
 import Language.Sunroof.JS.JQuery
 import Network.Wai.Middleware.Static
 
+import qualified Data.Map as HM
+
 import Types
 import Select
 
@@ -30,8 +36,14 @@ ourPolicy p = p
 examUID :: Int -> Int -> String
 examUID n m = show n ++ ".200-" ++ show m
 
-examName :: JSString -> JSString
-examName uid = "pages/exam3-" <> uid <> ".png"
+examName :: JSString -> JSNumber -> JS t JSString
+examName uid page = do
+        batch :: JSString <- uid # invoke "charAt" (0 :: JSNumber)
+        n :: JSNumber <- uid # invoke "indexOf" ("-" :: JSString)
+        start :: JSString <- uid # substr (n + 1)
+        start' <- fun "parseInt" `apply` (start,0 :: JSNumber)
+
+        return ("pages/exam3-" <> batch <> ".200-" <> cast (start' + (page - 1)) <> ".png")
 
   -- Figure out what scripts you actually have
 uids = [ examUID b n
@@ -55,7 +67,7 @@ main = do
 
 -- how big do we scale our pdf picture, in dots per inch?
 imageDpi :: JSNumber
-imageDpi = 300
+imageDpi = 200
 
 monitorDpi :: JSNumber
 monitorDpi = 75
@@ -146,9 +158,12 @@ prog kuidDB = do
       -- set up the slider(s)
 
       window # attr "findKUID" := findKUID
+      f <- function $ \ (a,b) -> examName a b
+      window # attr "examName" := f
+
 
       let pageSlider     :: SliderBar JSNumber = mkSliderBar "#page-slider"  6   1   6
-      let scaleSlider    :: SliderBar JSNumber = mkSliderBar "#scale-slider" 101 2   50
+      let scaleSlider    :: SliderBar JSNumber = mkSliderBar "#scale-slider" 101 1   3
       let questionSlider :: SliderBar JSNumber = mkSliderBar "#question-slider" 10  1   10
 
       initSlider pageSlider
@@ -209,8 +224,8 @@ prog kuidDB = do
       -- Here is the model
       let model = Model
                 { mQuestion = "0"
-                , mPage  = 3
-                , mUID   = ""
+                , mPage  = 1
+                , mUID   = js (head uids)
                 , mX     = 400
                 , mY     = 100
                 , mScale = 2.0
@@ -368,10 +383,11 @@ prog kuidDB = do
               txt <- fun "$.toJSON" $$ m'
               console # B.log ("MODEL: " <> txt :: JSString)
 
+              name <- examName (mUID jsm) (mPage jsm)
+
               -- and propogate the model
               vp :: JSViewPort <- tuple
-                        $ ViewPort ("/pages/exam3-3.200-4.png")
-                                -- /pages/exam.300-" <> cast (mPage jsm - 1) <> ".png")
+                        $ ViewPort name
                                    (mX jsm)
                                    (mY jsm)
                                    (mScale jsm)
@@ -404,14 +420,15 @@ prog kuidDB = do
               question # clearSelect
               question # activeSelect (mQuestion jsm)
 
-              () <- jq("#marking-sheet") >>= invoke "scrollTop" (0 :: JSNumber)
-              o1 :: JSObject <- jq ("#marking-sheet #q-" <> mQuestion jsm) >>= invoke "position" ()
---              console # B.log("marking: " <> cast (o1 ! attr "top" :: JSNumber) :: JSString)
-              o2 :: JSObject <- jq ("#marking-sheet h4") >>= invoke "position" ()
---              console # B.log("marking: " <> cast (o2 ! attr "top" :: JSNumber) :: JSString)
-              offset :: JSNumber <- evaluate $ (o1 ! attr "top") - (o2 ! attr "top")
-              () <- jq ("#marking-sheet") >>= invoke "scrollTop" (offset + 5)
-
+              whenB (mQuestion jsm /=* mQuestion jsm0) $ do
+                alert("X")
+                () <- jq("#marking-sheet") >>= invoke "scrollTop" (0 :: JSNumber)
+                o1 :: JSObject <- jq ("#marking-sheet #q-" <> mQuestion jsm) >>= invoke "position" ()
+                o2 :: JSObject <- jq ("#marking-sheet h4") >>= invoke "position" ()
+                whenB (o1 /=* nullJS &&* o2 /=* nullJS) $ do
+                      offset :: JSNumber <- evaluate $ (o1 ! attr "top") - (o2 ! attr "top")
+                      () <- jq ("#marking-sheet") >>= invoke "scrollTop" (offset + 5)
+                      return ()
 
               return m'
 
@@ -483,25 +500,31 @@ prog kuidDB = do
               console # B.log ("scale " <> cast scale :: JSString)
 
               paint <- function $ \ () -> do
-                      h :: JSNumber <- evaluate $ imageObj ! "height"
                       w :: JSNumber <- evaluate $ imageObj ! "width"
+                      h :: JSNumber <- evaluate $ imageObj ! "height"
                       let x0 :: JSNumber = 0
                           y0 :: JSNumber = 0
-                          x1 = h - 1
+                          x1 = w - 1
                           y1 = h - 1
+
+                          -- x and y needs to be inside the image
                           boundX = maxB x0 . minB x1
                           boundY = maxB y0 . minB y1
 
                           startX = boundX $ vpX vp
                           startY = boundY $ vpY vp
 
-                          endX = boundX $ vpX vp + 960 / scale
-                          endY = boundY $ vpY vp + 600 / scale
+                          endX = boundX $ vpX vp + (960 / scale)
+                          endY = boundY $ vpY vp + (500 / scale)
 
+                          dimX = endX - startX
+                          dimY = endY - startY
+
+                      context # clearRect (0,0) (960,500)
                       context # drawImageClip imageObj (startX,startY)
-                                                       (endX - startX,endY - startY)
+                                                       (dimX,dimY)
                                                        (0, 0)
-                                                       (960, 600)
+                                                       (dimX * scale,dimY * scale)
                       console # B.log ("painted" :: JSString)
 
 
@@ -554,6 +577,9 @@ prog kuidDB = do
 
 
 
+      jq "#who-is-this" >>= on "keypress" "" (\ (event :: JSObject, aux:: JSObject) -> do
+                alert(cast event))
+
 
       -- null update, to do first redraw
       upModel $ return
@@ -576,5 +602,43 @@ readKUIDs fileName = do
                  | x <- lines file
                  ]
 
+data AC = AC String String      -- anwser and comment
+-- { question :: String, answer :: String, score :: String }
+        deriving (Eq,Ord, Show, Read)
+type UID = String
 
+data UpperState = UpperState
+        { us_UID          :: UID
+        , us_Answers      :: HM.Map UID [HM.Map String AC]
+        }
+        deriving (Eq,Ord, Show)
 
+--updateUpperState ::
+
+-- send back update to the lower-level model
+readFileState :: UID -> IO [String]
+readFileState nm = (do
+        h <- openFile ("qa/" ++ nm ++ ".txt") ReadMode
+        let loop = do
+              b <- hIsEOF h
+              if b        then return []
+                          else do x <- hGetLine h
+                                  xs <- loop
+                                  return (x : xs)
+        xs <- loop
+        hClose h
+        return xs) `catch` (\ (e ::  IOException)  -> do { if isDoesNotExistError e then return [] else fail "Opps" })
+
+readAC :: UID -> IO (HM.Map String AC)
+readAC nm = do
+        qs <- readFileState nm
+        let xs :: [(String,AC)]= map read qs
+        return $ HM.fromList xs
+
+writeAC :: UID -> String -> AC -> IO ()
+writeAC nm q (AC a c) = do
+        appendFile ("qa/" ++ nm ++ ".txt") (show (q,AC a c) ++ "\n")
+
+--updateDB ::
+
+whenB a m = ifB a m (return ())
