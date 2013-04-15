@@ -12,7 +12,7 @@ import Data.Char
 import Data.Boolean
 import Data.Boolean.Numbers as N
 
-import Language.Sunroof
+import Language.Sunroof as SR
 import Language.Sunroof.Server
 import Language.Sunroof.Compiler
 import Language.Sunroof.TH
@@ -606,6 +606,7 @@ prog kuidDB = do
 
       jq "#who-is-this" >>= on "keyup mouseup change" "" (\ (event :: JSObject, aux:: JSObject) -> do
               txt :: JSString <- jq ("#who-is-this") >>= invoke "val" ()
+              console # B.log (event ! attr "charCode" :: JSNumber)
               console # B.log txt
               arr <- findKUID $$ txt
 
@@ -624,6 +625,36 @@ prog kuidDB = do
                         return ()
                     )
           )
+
+
+      allQuestions :: JSArray JSString <- array [ q | (q,_,_,_,_) <- whereQ ]
+
+      jq "body" >>= on "keydown" "" (\ (event :: JSObject, aux:: JSObject) -> do
+              whenB ((event ! attr "which") ==* (9 :: JSNumber)) $ do
+                     () <- event # invoke "preventDefault" ()
+                     console # B.log ("Tab pressed" :: JSString)
+                     -- Move to the next question
+
+
+
+                     upModel $ \ jsm -> do
+                             console # B.log ("theTab Up" :: JSString)
+                             theIndex <- allQuestions # invoke "indexOf" (mQuestion jsm)
+                             console # B.log ("theIndex: " <> cast theIndex  :: JSString)
+                             q <- ifB ((theIndex + 1) <* (allQuestions ! length'))
+                                 (do return (SR.lookup' (theIndex + 1) allQuestions))
+                                 (do console # B.log ("too far" :: JSString)
+                                     return (mQuestion jsm))
+                             return $ jsm { mQuestion = q }
+{-
+
+                     return $ jsm { mQuestion =
+                                                , mX     = mX model
+                                                , mY     = mY model
+                                                , mScale = mScale model
+                                                }
+-}
+           )
 
 
       -- null update, to do first redraw
