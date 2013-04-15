@@ -54,7 +54,16 @@
               font-weight: bold;
               cursor: default;
             }
-
+            
+            .answer div {
+             display:inline-block;
+              padding-right: 5pt;
+              padding-left: 5pt;
+            }
+            .answer div.question-number {
+              width: 30pt;
+              text-align: right;
+            }
 
      </style>         
         
@@ -98,17 +107,35 @@
           
           <div class="row">
             <div class="span9" style="height: 250px; overflow:scroll;" id="marking-sheet">
-              <h4>Grading Sheet</h4>
-              <h5 id="q-0">Question 0</h5>
-              
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris diam metus, pharetra quis lacinia sed, fermentum ac ligula. Vivamus eros nisi, tincidunt id dapibus nec, iaculis sed sapien. Proin pulvinar adipiscing dictum. Nulla arcu eros, semper non suscipit in, tincidunt eu purus. Aliquam viverra risus id arcu cursus malesuada. Duis auctor nulla sed ipsum aliquam sed 
-              <h3 id="q-1a">Question 1a</h3>
+              <h4 id="q-0">Grading Sheet</h4>
+              <h5>Question 0</h5>
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris diam metus, pharetra quis lacinia sed, fermentum ac ligula. Vivamus eros nisi, tincidunt id dapibus nec, iaculis sed sapien. Proin pulvinar adipiscing dictum. Nulla arcu eros, semper non suscipit in, tincidunt eu purus. Aliquam viverra risus id arcu cursus malesuada. Duis auctor nulla sed ipsum aliquam sed 
-              <h3 id="q-1b">Question 1b</h3>
+                <div class="row">
+                  <div class="span4">
+                    <input type="text" placeholder="Name or UID">
+                  </div>
+                  <div class="span4">
+                    Answer 0: Dr Who (38475834)
+                  </div>
+                </div>
+              <h5 id="q-1">Question 1</h5>
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris diam metus, pharetra quis lacinia sed, fermentum ac ligula. Vivamus eros nisi, tincidunt id dapibus nec, iaculis sed sapien. Proin pulvinar adipiscing dictum. Nulla arcu eros, semper non suscipit in, tincidunt eu purus. Aliquam viverra risus id arcu cursus malesuada. Duis auctor nulla sed ipsum aliquam sed 
-              <h3 id="q-1c">Question 1c</h3>
+              <div class="answer answer-truefalse answer-20">1a</div>
+              <div class="answer answer-truefalse answer-20">1b</div>
+              <div class="answer answer-truefalse answer-20">1c</div>
+              <div class="answer answer-truefalse answer-02">1d</div>
+              <div class="answer answer-truefalse answer-02">1e</div>
+              <div class="answer answer-truefalse answer-02">1f</div>
+              <div class="answer answer-truefalse answer-02">1g</div>
+
+              <h5 id="q-2">Question 2</h5>
+
+              <div class="answer answer-ABCD answer-0300">2a</div>
+              <div class="answer answer-ABCD answer-3000">2b</div>
+              <div class="answer answer-ABCD answer-0230">2c</div>
+              <div class="answer answer-ABCD answer-0003">2d</div>
+
+              <h5 id="q-3">Question 3</h5>
 
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris diam metus, pharetra quis lacinia sed, fermentum ac ligula. Vivamus eros nisi, tincidunt id dapibus nec, iaculis sed sapien. Proin pulvinar adipiscing dictum. Nulla arcu eros, semper non suscipit in, tincidunt eu purus. Aliquam viverra risus id arcu cursus malesuada. Duis auctor nulla sed ipsum aliquam sed 
               <h3>Question 1</h3>

@@ -3,7 +3,7 @@
 module Main where
 
 import Data.Default ( Default(..) )
-import Data.Semigroup ( (<>) )
+import Data.Semigroup ( (<>), mconcat )
 import Control.Monad
 import Data.Boolean
 import Data.Boolean.Numbers as N
@@ -203,12 +203,13 @@ prog = do
       -------------------------------------------------
       question :: JSSelect JSString <- newSelect "which-question"
 
-      question # insertOption "1a" "1(a)"
+      question # insertOption "0" "&laquo;"
+
+      question # insertOption "1" "1"
       question # insertOption "1b" "1(b)"
       question # insertOption "1c" "1(c)"
 
-      arr :: JSArray JSString <- array ["1a","1b","1c" :: String]
-
+      arr <- question # keysSelect
       question # drawSelect arr
 
       question # addCallback (\ k -> upModel $ \ jsm -> return $ jsm { mQuestion = k })
@@ -227,6 +228,40 @@ prog = do
 
       console # B.log ("done sel" :: JSString)
 
+---------------------------------------------------------------------------------
+--      Updating the questions
+---------------------------------------------------------------------------------
+
+
+
+      let newAnswer :: [String] -> JSObject -> JS t ()
+          newAnswer opts answer = do
+              txt <- jq (cast answer) >>= html
+              let new_txt =
+                        ("<div class=\"question-number\">" <> cast txt <> "</div>") <>
+                        ("<span class=\"question-mark pagination pagination-small\"><ul>" <>
+                          mconcat [ "<li><a>" <> js txt <> "</a></li>"
+                                  | txt <- opts
+                                  ] <>
+                         "<ul></span>") <>
+                        ("<div class=\"question-score\"></div>")
+              jq (cast answer) >>= setHtml new_txt
+              return ()
+
+      answer_ids :: JSArray JSObject <- jq (".answer-truefalse") >>= invoke "get" ()
+      answer_ids # forEach (newAnswer ["T","F"])
+
+      answer_ids :: JSArray JSObject <- jq (".answer-ABCD") >>= invoke "get" ()
+      answer_ids # forEach (newAnswer ["A","B","C","D"])
+
+--     jq (".answer.truefalse") >>= each
+
+--      jq (".answer.truefalse") >>= \ o -> do
+--              cast o :: JSArray JSObject forEach
+--                ans <- newAnswer ["True","False"]
+--                o # setHtml("ABC")
+--                o # setCss "border" "1pt solid red"
+--        <div id="a-1" class="answer truefalse points-2"/><BR>
 
 ---------------------------------------------------------------------------------
 --      Updating the model
@@ -290,7 +325,7 @@ prog = do
               o2 :: JSObject <- jq ("#marking-sheet h4") >>= invoke "position" ()
 --              console # B.log("marking: " <> cast (o2 ! attr "top" :: JSNumber) :: JSString)
               offset :: JSNumber <- evaluate $ (o1 ! attr "top") - (o2 ! attr "top")
-              () <- jq ("#marking-sheet") >>= invoke "scrollTop" offset
+              () <- jq ("#marking-sheet") >>= invoke "scrollTop" (offset + 10)
 
 
               return m'
