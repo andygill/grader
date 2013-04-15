@@ -234,25 +234,28 @@ prog = do
 
 
 
-      let newAnswer :: [String] -> JSObject -> JS t ()
-          newAnswer opts answer = do
+      let newAnswer :: [String] -> Bool -> JSObject -> JS t ()
+          newAnswer opts ver answer = do
               txt <- jq (cast answer) >>= html
               let new_txt =
                         ("<div class=\"question-number\">" <> cast txt <> "</div>") <>
-                        ("<span class=\"question-mark pagination pagination-small\"><ul>" <>
-                          mconcat [ "<li><a>" <> js txt <> "</a></li>"
+                        ("<div class=\"question-mark btn-group " <>
+                         (if ver then "btn-group-vertical" else "") <> "\">" <>
+                          mconcat [ "<button class=\"btn " <>
+                                   (if ver then "btn-mini" else "btn-small") <> "\">" <>
+                                   js txt <> "</button>"
                                   | txt <- opts
                                   ] <>
-                         "<ul></span>") <>
+                         "</div>") <>
                         ("<div class=\"question-score\"></div>")
               jq (cast answer) >>= setHtml new_txt
               return ()
 
       answer_ids :: JSArray JSObject <- jq (".answer-truefalse") >>= invoke "get" ()
-      answer_ids # forEach (newAnswer ["T","F"])
+      answer_ids # forEach (newAnswer ["T","F"] False)
 
       answer_ids :: JSArray JSObject <- jq (".answer-ABCD") >>= invoke "get" ()
-      answer_ids # forEach (newAnswer ["A","B","C","D"])
+      answer_ids # forEach (newAnswer ["A","B","C","D"] True)
 
 --     jq (".answer.truefalse") >>= each
 

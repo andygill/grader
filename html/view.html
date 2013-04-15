@@ -78,18 +78,7 @@
           <div class="row" style="border-bottom: 1px solid black; margin-bottom: 5px;">
 
             <div class="span7">
-              <div id="which-question" class="pagination pagination-mini">
-              <ul>
-              <li><a href="#">&laquo;</a></li>
-              <li><a href="#">0</a></li>
-              <li><a href="#">1</a></li>
-              <li><a href="#">1</a></li>
-              <li><a href="#">1</a></li>
-              <li><a href="#">1</a></li>
-              <li><a href="#">1</a></li>
-              <li><a href="#">1</a></li>
-              <li><a href="#">&raquo;</a></li>
-              </ul>
+              <div id="which-question" class="btn-group">
               </div>
             </div>
 
@@ -110,12 +99,11 @@
               <h4 id="q-0">Grading Sheet</h4>
               <h5>Question 0</h5>
 
-                <div class="row">
+                <div class="answer row">
                   <div class="span4">
                     <input type="text" placeholder="Name or UID">
                   </div>
-                  <div class="span4">
-                    Answer 0: Dr Who (38475834)
+                  <div class="span4 who-am-i">
                   </div>
                 </div>
               <h5 id="q-1">Question 1</h5>
@@ -130,10 +118,10 @@
 
               <h5 id="q-2">Question 2</h5>
 
-              <div class="answer answer-ABCD answer-0300">2a</div>
-              <div class="answer answer-ABCD answer-3000">2b</div>
-              <div class="answer answer-ABCD answer-0230">2c</div>
-              <div class="answer answer-ABCD answer-0003">2d</div>
+              <div id="q-2a" class="answer answer-ABCD answer-0300">2a</div><BR>
+              <div id="q-2b" class="answer answer-ABCD answer-3000">2b</div><BR>
+              <div id="q-2c" class="answer answer-ABCD answer-0230">2c</div><BR>
+              <div id="q-2d" class="answer answer-ABCD answer-0003">2d</div>
 
               <h5 id="q-3">Question 3</h5>
 
@@ -204,7 +192,7 @@ Duis euismod diam non nulla tincidunt dapibus. Ut a enim nec eros eleifend tinci
               <tr><td>scale</td><td><div id="scale-slider" style="width: 100px" class="slide"></div></td><td id="scale-slider-counter">1</td></tr>
             </table>
 
-            <div id="which-page" class="pagination pagination-centered pagination-mini" style="margin-bottom: 0">
+            <div id="which-page" class="btn-group btn-group-centered" style="margin-bottom: 0">
             </div>
 
           </div>

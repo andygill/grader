@@ -33,19 +33,18 @@ newSelect name = do
   render <- function $ \ arr -> do
         console # B.log ("render backcall : " <> cast (arr ! length') :: JSString)
 
-        jq ("#" <> name) >>= setHtml ("<ul></ul>")
+        jq ("#" <> name) >>= setHtml ("")
         arr # forEach (\ k -> do
                 kId :: JSNumber <- key_fm # M.lookup k
                 val :: JSString <- evaluate $ SR.lookup' kId txt_arr
                 let str :: JSString
-                    str = "<li>"
-                       <> "<a class=\"click\" id=\""
+                    str = "<button class=\"btn click\" id=\""
                        <> name <> "-" <> cast kId
                        <> "\">"
                        <> val
-                       <> "</a></li>"
+                       <> "</button>"
 
-                jq ("#" <> name <> " ul") >>= append (cast str)
+                jq ("#" <> name) >>= append (cast str)
 
                 return ())
 
@@ -96,13 +95,13 @@ idSelect k (match -> sel) = do
 -- should be build into the object
 clearSelect :: (SunroofKey k) => JSSelect k -> JS t ()
 clearSelect (match -> sel) = do
-  jq ("#" <> selectId sel <>" li") >>= removeClass ("active")
+  jq ("#" <> selectId sel <>" .active") >>= removeClass ("active")
 
 -- should be build into the object
 activeSelect :: (SunroofKey k) => k -> JSSelect k -> JS t ()
 activeSelect k jssel@(match -> sel) = do
   kId <- jssel # idSelect k
-  jq ("#" <> selectId sel <> " #" <> kId) >>= invoke "parent" () >>= addClass("active")
+  jq ("#" <> selectId sel <> " #" <> kId) >>= {- invoke "parent" () >>= -} addClass("active")
 
 -- This gets called each time an option gets selected/clicked
 addCallback :: (SunroofKey k) => (k -> JSB ()) -> JSSelect k -> JS t ()
