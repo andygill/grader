@@ -615,7 +615,6 @@ prog kuidDB = do
                     (do jq ("#who-am-i") >>= setHtml ("(" <> cast (arr ! length') <> " entries)")
                         return ()
                     )
-                    ifB ((arr ! length') >* 10)
                     (do jq ("#who-am-i") >>= setHtml ("")
                         arr # forEach (\ k -> do
                            student <- kuidMap # M.lookup k
