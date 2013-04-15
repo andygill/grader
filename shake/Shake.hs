@@ -30,7 +30,7 @@ main2 [] = shake (shakeOptions) $ do
                 liftIO $ print files
                 need [ pages </> addExtension (dropExtension nm) (show res ++ "-0.png")
                      | nm <- files
-                     , res <- [10,300]
+                     , res <- [10,200]
                      ]
 
 --                files <- getDirectoryFiles repo ["//*.hs"]
