@@ -221,15 +221,18 @@ prog kuidDB = do
       -- channel of what to show on the graphical viewport
       viewportChan :: JSChan JSViewPort <- newChan
 
+      let ((_,p,x,y,s):_) = whereQ
+
       -- Here is the model
       let model = Model
                 { mQuestion = "0"
-                , mPage  = 1
+                , mPage  = js p
                 , mUID   = js (head uids)
-                , mX     = 400
-                , mY     = 100
-                , mScale = 2.0
+                , mX     = js x
+                , mY     = js y
+                , mScale = js s
                 }
+
       jsModel :: JSModel <- tuple model
 
       modelChan :: JSChan (JSFunction JSModel JSModel) <- newChan
@@ -275,6 +278,7 @@ prog kuidDB = do
       question # insertOption "6a" "6a"
       question # insertOption "6b" "6b"
       question # insertOption "6c" "6c"
+      question # insertOption "6d" "6d"
 
       question # insertOption "total" "&raquo;"
 
@@ -367,11 +371,13 @@ prog kuidDB = do
 ---------------------------------------------------------------------------------
 
 
+      questionLoc :: JSMap JSString JSPosition <- M.newMap
 
-
-
-
-
+      sequence_
+        [ do loc <- tuple $ Position (js p) (js x) (js y) (js s)
+             M.insert (js q) loc questionLoc
+        | (q,p,x,y,s) <- whereQ
+        ]
 
       forkJS $ loop jsModel $ \ m -> do
               up <- modelChan # readChan
@@ -380,8 +386,18 @@ prog kuidDB = do
               m' <- up $$ m
               let jsm = match m'
               -- Display the model
-              txt <- fun "$.toJSON" $$ m'
-              console # B.log ("MODEL: " <> txt :: JSString)
+--              txt <- fun "$.toJSON" $$ m'
+              console # B.log ("MODEL: " :: JSString)
+              console # B.log m
+
+              jq ("#model-txt") >>= setHtml ("M:" <>
+                        " q=" <> mQuestion jsm <>
+                        " p=" <> cast (mPage jsm) <>
+                        " mUID=" <> mUID jsm <>
+                        " x=" <> cast (mX jsm) <>
+                        " y=" <> cast (mY jsm) <>
+                        " s=" <> cast (mScale jsm) <> ""
+                        :: JSString)
 
               name <- examName (mUID jsm) (mPage jsm)
 
@@ -421,7 +437,6 @@ prog kuidDB = do
               question # activeSelect (mQuestion jsm)
 
               whenB (mQuestion jsm /=* mQuestion jsm0) $ do
-                alert("X")
                 () <- jq("#marking-sheet") >>= invoke "scrollTop" (0 :: JSNumber)
                 o1 :: JSObject <- jq ("#marking-sheet #q-" <> mQuestion jsm) >>= invoke "position" ()
                 o2 :: JSObject <- jq ("#marking-sheet h4") >>= invoke "position" ()
@@ -429,6 +444,18 @@ prog kuidDB = do
                       offset :: JSNumber <- evaluate $ (o1 ! attr "top") - (o2 ! attr "top")
                       () <- jq ("#marking-sheet") >>= invoke "scrollTop" (offset + 5)
                       return ()
+                -- now, check to see if you have an entry for this question
+                js_ans <- questionLoc # M.lookup (mQuestion jsm)
+                whenB (cast js_ans /=* object "undefined")
+                      (let ans = match js_ans
+                       in upModel $ \ jsm -> return $ jsm { mPage  = pPage ans
+                                                          , mX     = pX ans
+                                                          , mY     = pY ans
+                                                          , mScale = pScale ans
+                                                          })
+
+
+
 
               return m'
 
@@ -642,3 +669,26 @@ writeAC nm q (AC a c) = do
 --updateDB ::
 
 whenB a m = ifB a m (return ())
+
+
+-----------------------------------------
+
+whereQ :: [(String,Int,Int,Int,Float)]
+whereQ = [("0", 1,      237,202,        2)
+         ,("1", 2,      231,242,         1.72)
+         ,("2a",2,      172,804,         1.72)
+         ,("2b",2,      172,1147,        1.72)
+         ,("2c",2,      172,1432,        1.72)
+         ,("2d",2,      172,1704,        1.72)
+         ,("3-1",3,     172,845,         1.72)
+         ,("3-2",3,     181,1406,        1.72)
+         ,("4a",4,      172,593,         1.72)
+         ,("4b",4,      172,1000,        1.72)
+         ,("4c",4,      172,1445,        1.72)
+         ,("5-1",5,     172,845,         1.72)
+         ,("5-2",5,     181,1406,        1.72)
+         ,("6a",6,      172,271,         1.72)
+         ,("6b",6,      172,728,         1.72)
+         ,("6c",6,      172,1147,        1.72)
+         ,("6d",6,      172,1580,        1.72)
+         ]
