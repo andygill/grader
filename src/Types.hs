@@ -54,6 +54,23 @@ deriveJSTuple
 
 ----------------------------------------------------------------
 
+newtype JSPosition = JSPosition JSObject
+
+data Position = Position
+  { pPage :: JSNumber
+  , pX     :: JSNumber     -- where from the page we are viewing
+  , pY     :: JSNumber     --
+  , pScale :: JSNumber     -- zooming
+  }
+
+deriveJSTuple
+  [d| instance JSTuple JSPosition where
+          type Internals JSPosition = Position
+  |]
+
+----------------------------------------------------------------
+
+
 
 newtype JSModel = JSModel JSObject
 
