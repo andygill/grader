@@ -317,8 +317,7 @@ prog kuidDB = do
       arr <- kuidMenu # keysSelect
       kuidMenu # drawSelect arr
 
-      kuidMenu # addCallback (\ k -> alert (cast k))
-
+      kuidMenu # addCallback (\ k -> upModel $ \ jsm -> return $ jsm { mUID = k })
 
       console # B.log ("done sel" :: JSString)
 
@@ -436,7 +435,7 @@ prog kuidDB = do
               question # clearSelect
               question # activeSelect (mQuestion jsm)
 
-              whenB (mQuestion jsm /=* mQuestion jsm0) $ do
+              whenB ((mQuestion jsm /=* mQuestion jsm0) ||* (mUID jsm /=* mUID jsm0)) $ do
                 () <- jq("#marking-sheet") >>= invoke "scrollTop" (0 :: JSNumber)
                 o1 :: JSObject <- jq ("#marking-sheet #q-" <> mQuestion jsm) >>= invoke "position" ()
                 o2 :: JSObject <- jq ("#marking-sheet h4") >>= invoke "position" ()
@@ -444,6 +443,7 @@ prog kuidDB = do
                       offset :: JSNumber <- evaluate $ (o1 ! attr "top") - (o2 ! attr "top")
                       () <- jq ("#marking-sheet") >>= invoke "scrollTop" (offset + 5)
                       return ()
+
                 -- now, check to see if you have an entry for this question
                 js_ans <- questionLoc # M.lookup (mQuestion jsm)
                 whenB (cast js_ans /=* object "undefined")
@@ -604,8 +604,27 @@ prog kuidDB = do
 
 
 
-      jq "#who-is-this" >>= on "keypress" "" (\ (event :: JSObject, aux:: JSObject) -> do
-                alert(cast event))
+      jq "#who-is-this" >>= on "keyup mouseup change" "" (\ (event :: JSObject, aux:: JSObject) -> do
+              txt :: JSString <- jq ("#who-is-this") >>= invoke "val" ()
+              console # B.log txt
+              arr <- findKUID $$ txt
+
+              console # B.log arr
+
+              ifB ((arr ! length') >* 10)
+                    (do jq ("#who-am-i") >>= setHtml ("(" <> cast (arr ! length') <> " entries)")
+                        return ()
+                    )
+                    ifB ((arr ! length') >* 10)
+                    (do jq ("#who-am-i") >>= setHtml ("")
+                        arr # forEach (\ k -> do
+                           student <- kuidMap # M.lookup k
+                           jq ("#who-am-i") >>= append (cast (k <> " "<> student <> "<BR>") :: JSObject)
+                           return ()
+                          )
+                        return ()
+                    )
+          )
 
 
       -- null update, to do first redraw
