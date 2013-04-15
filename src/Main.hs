@@ -26,14 +26,30 @@ ourPolicy p = p
         <|> (hasSuffix ".html" >-> addBase "html")
         <|> (hasPrefix "pages/")
 
+
+examUID :: Int -> Int -> String
+examUID n m = show n ++ ".200-" ++ show m
+
+examName :: JSString -> JSString
+examName uid = "pages/exam3-" <> uid <> ".png"
+
+  -- Figure out what scripts you actually have
+uids = [ examUID b n
+            | (b::Int,sz::Int) <- [1..] `zip` [120,78,78,108,78,60]
+            , n <- [0,6..(sz-1)]
+            ]
+
 main :: IO ()
 main = do
 -- dataDir <- getDataDir
+
+ kuidDB <- readKUIDs "kuids/EECS168-S13"
+
  sunroofServer (def { sunroofVerbose = 3
                       , cometResourceBaseDir = "." -- dataDir
                       , cometPolicy = ourPolicy (cometPolicy def)
                       , cometIndexFile = "html/view.html"
-                      }) $ \ doc -> asyncJS doc prog
+                      }) $ \ doc -> asyncJS doc (prog kuidDB)
 
 
 
@@ -101,16 +117,35 @@ selectMenuItem k (match -> Menu dom_id tbl lk) = do
 --      $("#selectID").val( theValue ).attr('selected',true);
 
 
-prog :: JSA ()
-prog = do
+prog :: [(String,String)] -> JSA ()
+prog kuidDB = do
       fatal <- function $ \ (a::JSObject,b::JSObject,c::JSObject,f::JSFunction () ()) -> do
                                 -- This should be a command line thing
                                 B.alert("FAILURE" <> cast a <> cast b <> cast c)
                                 return ()
       () <- fun "$.kc.failure"  `apply` fatal
 
+      kuidArray :: JSArray JSString <- empty
+
+      sequence [ kuidArray # push (js k) | (k,_) <- kuidDB ]
+
+      kuidMap :: JSMap JSString JSString <- newMap
+
+      sequence [ kuidMap # M.insert (js k) (js nm) | (k,nm) <- kuidDB ]
+
+
+      findKUID :: JSFunction JSString (JSArray JSString) <- function $ \ (str :: JSString)  -> do
+                arr <- empty
+                kuidArray # forEach (\ nm -> do
+                        v1 :: JSNumber <- nm # invoke "indexOf" str
+                        studentName <- kuidMap # M.lookup nm
+                        v2 :: JSNumber <- studentName # invoke "indexOf" str
+                        ifB ((v1 /=* -1) ||* (v2 /=* -1)) ( do { arr # push nm ; return () } ) ( return ()))
+                return arr
 
       -- set up the slider(s)
+
+      window # attr "findKUID" := findKUID
 
       let pageSlider     :: SliderBar JSNumber = mkSliderBar "#page-slider"  6   1   6
       let scaleSlider    :: SliderBar JSNumber = mkSliderBar "#scale-slider" 101 2   50
@@ -256,9 +291,9 @@ prog = do
 
       kuidMenu :: JSSelect JSString <- newSelect "kuid-menu"
 
-      kuidMenu  # insertOption "1" "1"
-      kuidMenu  # insertOption "2" "2"
-      kuidMenu  # insertOption "3" "3"
+      sequence_ [ kuidMenu  # insertOption (js uid) (js uid)
+                | uid <- uids
+                ]
 
       arr <- kuidMenu # keysSelect
       kuidMenu # drawSelect arr
@@ -335,7 +370,8 @@ prog = do
 
               -- and propogate the model
               vp :: JSViewPort <- tuple
-                        $ ViewPort ("/pages/exam.300-" <> cast (mPage jsm - 1) <> ".png")
+                        $ ViewPort ("/pages/exam3-3.200-4.png")
+                                -- /pages/exam.300-" <> cast (mPage jsm - 1) <> ".png")
                                    (mX jsm)
                                    (mY jsm)
                                    (mScale jsm)
@@ -525,4 +561,20 @@ prog = do
       return ()
 
 default(JSNumber, JSString, String)
+
+-----------------------------------------------------------------------
+
+--- Key persistent API
+
+readKUIDs :: String -> IO [(String,String)]
+readKUIDs fileName = do
+        file <- readFile fileName
+        return $ concat
+               $ [ case words x of
+                    [] -> []
+                    (id:rest) -> [(id,unwords rest)]
+                 | x <- lines file
+                 ]
+
+
 

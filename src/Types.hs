@@ -39,13 +39,31 @@ deriveJSTuple
 
 ----------------------------------------------------------------
 
+newtype JSStudent = JSStudent JSObject
+
+data Student = Student
+        { sUID  :: JSString             -- the key to get here
+        , sName :: JSString             -- Normalized Name
+        , sKUID :: JSString             -- textual version of number
+        }
+
+deriveJSTuple
+  [d| instance JSTuple JSStudent where
+          type Internals JSStudent = JSStudent
+  |]
+
+----------------------------------------------------------------
+
+
 newtype JSModel = JSModel JSObject
 
 data Model = Model
         { mQuestion :: JSString  -- The currently selected question number, always at least one selected
         , mPage  :: JSNumber     -- Page number of the exam (starts at 1)
-        , mUID   :: JSString     -- Text of the UID
---        , mUDB   :: JSObject     -- Map from mUID Strings to
+        , mUID   :: JSString     -- location of the exam script
+
+--        , mUIDs  :: JSMap JSString JSStudent
+
         , mX     :: JSNumber     -- where from the page we are viewing
         , mY     :: JSNumber     --
         , mScale :: JSNumber     -- zooming
@@ -56,7 +74,10 @@ deriveJSTuple
           type Internals JSModel = Model
   |]
 
+
 --------------------------------------------------
+
+
 
 newtype JSViewPort = JSViewPort JSObject
 
