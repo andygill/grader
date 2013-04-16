@@ -84,26 +84,17 @@ deriveJSTuple
 
 ----------------------------------------------------------------
 
-newtype JSServerRequest = JSServerRequest JSObject
+newtype JSServerResponse = JSServerResponse JSObject
 
-data ServerRequest = ServerRequest
-  { sUID :: JSString    -- this person
-  , sQA :: JSQA         -- give this response to a question
+data ServerResponse = ServerResponse
+  { sUID :: JSString                    -- this person
+  , sQA :: JSMap JSString JSString      -- has these Q and As
   }
 
 deriveJSTuple
-  [d| instance JSTuple JSServerRequest where
-          type Internals JSServerRequest = ServerRequest
+  [d| instance JSTuple JSServerResponse where
+          type Internals JSServerResponse = ServerResponse
   |]
-
-{-
-instance SunroofResult JSServerRequest where
-  type ResultOf JSServerRequest = (String,String,String)
-  jsonToValue Proxy =
-    Data.Proxy.Proxy * a
-    -> aeson-0.6.1.0:Data.Aeson.Types.Internal.Value -> ResultOf a
-  	-- Defined in `Language.Sunroof.Server'
--}
 
 ----------------------------------------------------------------
 
@@ -120,6 +111,7 @@ data Model = Model
         , mY     :: JSNumber     --
         , mScale :: JSNumber     -- zooming
         , mQA    :: JSQA
+        , mComment :: JSMap JSString JSString
         }
 
 deriveJSTuple

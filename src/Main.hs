@@ -68,7 +68,7 @@ main = do
 
    up :: Uplink (JSArray JSString) <- newUplink doc
 
-   down :: Downlink (JSString, JSMap JSString JSString) <- newDownlink doc
+   down :: Downlink JSServerResponse <- newDownlink doc
 
    forkIO $ server doc up down
 
@@ -138,7 +138,7 @@ selectMenuItem k (match -> Menu dom_id tbl lk) = do
 --      $("#selectID").val( theValue ).attr('selected',true);
 
 
-prog :: [(String,String)] -> Uplink (JSArray JSString) -> Downlink (JSString, JSMap JSString JSString) -> JSA ()
+prog :: [(String,String)] -> Uplink (JSArray JSString) -> Downlink JSServerResponse -> JSA ()
 prog kuidDB upLink downLink = do
       fatal <- function $ \ (a::JSObject,b::JSObject,c::JSObject,f::JSFunction () ()) -> do
                                 -- This should be a command line thing
@@ -232,6 +232,7 @@ prog kuidDB upLink downLink = do
 
       let ((_,p,x,y,s):_) = whereQ
 
+      commentMap <- M.newMap
       -- Here is the model
       let model = Model
                 { mQuestion = "0"
@@ -241,6 +242,7 @@ prog kuidDB upLink downLink = do
                 , mY     = js y
                 , mScale = js s
                 , mQA    = cast nullJS
+                , mComment = commentMap
                 }
 
       jsModel :: JSModel <- tuple model
@@ -258,8 +260,8 @@ prog kuidDB upLink downLink = do
 
 
       forkJS $ loop () $ \ () -> do
-             (uid,msg) <- getDownlink downLink
-             alert("SENT ARR " <> cast uid)
+             (match -> ServerResponse uid msg) <- getDownlink downLink
+             upModel $ \ jsm -> return $ jsm { mUID = uid, mComment = msg }
              return ()
 
 ---------------------------------------------------------------------------------
@@ -346,10 +348,13 @@ prog kuidDB upLink downLink = do
 
       let newAnswer :: [String] -> Bool -> JSObject -> JS t ()
           newAnswer opts ver answer = do
+              theId :: JSString <- jq (cast answer) >>= invoke "attr" ("id" :: JSString)
               txt <- jq (cast answer) >>= html
+
               let new_txt =
                         ("<div class=\"question-number\">" <> cast txt <> "</div>") <>
-
+                        ("<div id=\"b-" <> theId <> "\" class=\"question-mark btn-group\"></div>") <>
+                        {-
                         (if "?" `elem` opts then
                         ("<div class=\"question-mark btn-group\">" <>
                          "<button class=\"btn btn-mini\">?</button>" <>
@@ -364,8 +369,21 @@ prog kuidDB upLink downLink = do
                                   , txt /= "?"
                                   ] <>
                          "</div>") <>
-                        ("<div class=\"question-score\"></div>")
+-}
+                        ("<div id=\"a-" <> theId <> "\" class=\"question-score\"></div>")
               jq (cast answer) >>= setHtml new_txt
+
+              sel <- newSelect ("b-" <> theId)
+              sequence [ sel # insertOption (js k) (js k)
+                       | k <- opts
+                       ]
+
+              arr <- sel # keysSelect
+              sel # drawSelect arr
+              arr # forEach (\ k -> do
+                      txt <- sel # idSelect k
+                      jq ("#" <> txt) >>= addClass(if ver then "btn-mini" else "btn-small"))
+
               return ()
 
       answer_ids :: JSArray JSObject <- jq (".answer-truefalse") >>= invoke "get" ()
@@ -501,6 +519,19 @@ prog kuidDB upLink downLink = do
 
                   -- send the server the message
                   upLink # putUplink msg
+
+              whenB (cast (mComment jsm) /=* (cast (mComment jsm0) :: JSObject)) $ do
+                      -- comments changed, so redraw them
+                      keys0 :: JSArray (JSSelector JSString) <- mComment jsm # M.selectors
+                      -- HACK HACK HACK HACK HACK HACK
+                      keys :: JSArray (JSString) <- keys0 # jsMap (\ k -> cast k # substr(1))
+                      console # B.log ("map key : " <> cast (keys ! length') :: JSString)
+
+                      console # B.log (keys :: JSArray JSString)
+                      keys # forEach (\ k -> do
+                        ans <- mComment jsm # M.lookup k
+                        jq("#a-" <> k) >>= setHtml ans
+                        return ())
 
               -- return the jsm without the delta request
               tuple $ jsm { mQA = cast nullJS }
@@ -721,16 +752,16 @@ default(JSNumber, JSString, String)
 -----------------------------------------------------------------------
 
 
-server :: SunroofEngine -> Uplink (JSArray JSString) -> Downlink (JSString, JSMap JSString JSString) -> IO ()
+server :: SunroofEngine -> Uplink (JSArray JSString) -> Downlink JSServerResponse -> IO ()
 server doc up down = do
   let sendContents uid (UpperState st) =
           do putDownlink down $ do
                 mp <- M.newMap
-                sequence_ [ return () -- mp # M.insert (js x) (js y)
+                sequence_ [ mp # M.insert (js x) (js msg)
                           | Just m2 <- [HM.lookup uid st]
-                          , (x,y) <- HM.toList m2
+                          , (x,AC _ msg _) <- HM.toList m2
                           ]
-                return (js uid,mp)
+                tuple $ ServerResponse (js uid) mp
 
   let loop st = do
         print st
