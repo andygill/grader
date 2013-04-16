@@ -8,6 +8,7 @@ import Control.Monad
 import System.IO
 import System.IO.Error
 import Control.Exception hiding (evaluate)
+import Control.Concurrent (forkIO )
 import Data.Char
 import Data.Boolean
 import Data.Boolean.Numbers as N
@@ -43,6 +44,8 @@ examName uid page = do
         start :: JSString <- uid # substr (n + 1)
         start' <- fun "parseInt" `apply` (start,0 :: JSNumber)
 
+
+
         return ("pages/exam3-" <> batch <> ".200-" <> cast (start' + (page - 1)) <> ".png")
 
   -- Figure out what scripts you actually have
@@ -61,9 +64,15 @@ main = do
                       , cometResourceBaseDir = "." -- dataDir
                       , cometPolicy = ourPolicy (cometPolicy def)
                       , cometIndexFile = "html/view.html"
-                      }) $ \ doc -> asyncJS doc (prog kuidDB)
+                      }) $ \ doc -> do
 
+   up :: Uplink (JSArray JSString) <- newUplink doc
 
+   down :: Downlink (JSString, JSMap JSString JSString) <- newDownlink doc
+
+   forkIO $ server doc up down
+
+   asyncJS doc (prog kuidDB up down)
 
 -- how big do we scale our pdf picture, in dots per inch?
 imageDpi :: JSNumber
@@ -129,8 +138,8 @@ selectMenuItem k (match -> Menu dom_id tbl lk) = do
 --      $("#selectID").val( theValue ).attr('selected',true);
 
 
-prog :: [(String,String)] -> JSA ()
-prog kuidDB = do
+prog :: [(String,String)] -> Uplink (JSArray JSString) -> Downlink (JSString, JSMap JSString JSString) -> JSA ()
+prog kuidDB upLink downLink = do
       fatal <- function $ \ (a::JSObject,b::JSObject,c::JSObject,f::JSFunction () ()) -> do
                                 -- This should be a command line thing
                                 B.alert("FAILURE" <> cast a <> cast b <> cast c)
@@ -231,6 +240,7 @@ prog kuidDB = do
                 , mX     = js x
                 , mY     = js y
                 , mScale = js s
+                , mQA    = cast nullJS
                 }
 
       jsModel :: JSModel <- tuple model
@@ -244,6 +254,13 @@ prog kuidDB = do
                                 jsm' <- f jsm
                                 tuple jsm')
                   modelChan # writeChan g
+
+
+
+      forkJS $ loop () $ \ () -> do
+             (uid,msg) <- getDownlink downLink
+             alert("SENT ARR " <> cast uid)
+             return ()
 
 ---------------------------------------------------------------------------------
 --      Painting the screen
@@ -332,12 +349,19 @@ prog kuidDB = do
               txt <- jq (cast answer) >>= html
               let new_txt =
                         ("<div class=\"question-number\">" <> cast txt <> "</div>") <>
+
+                        (if "?" `elem` opts then
+                        ("<div class=\"question-mark btn-group\">" <>
+                         "<button class=\"btn btn-mini\">?</button>" <>
+                         "</div>") else "") <>
+
                         ("<div class=\"question-mark btn-group " <>
                          (if ver then "btn-group-vertical" else "") <> "\">" <>
                           mconcat [ "<button class=\"btn " <>
                                    (if ver then "btn-mini" else "btn-small") <> "\">" <>
                                    js txt <> "</button>"
                                   | txt <- opts
+                                  , txt /= "?"
                                   ] <>
                          "</div>") <>
                         ("<div class=\"question-score\"></div>")
@@ -345,10 +369,10 @@ prog kuidDB = do
               return ()
 
       answer_ids :: JSArray JSObject <- jq (".answer-truefalse") >>= invoke "get" ()
-      answer_ids # forEach (newAnswer ["T","F"] False)
+      answer_ids # forEach (newAnswer ["?","T","F"] False)
 
       answer_ids :: JSArray JSObject <- jq (".answer-ABCD") >>= invoke "get" ()
-      answer_ids # forEach (newAnswer ["A","B","C","D"] True)
+      answer_ids # forEach (newAnswer ["?","A","B","C","D"] True)
 
       answer_ids :: JSArray JSObject <- jq (".answer-5") >>= invoke "get" ()
       answer_ids # forEach (newAnswer (map show [0..5::Int]) False)
@@ -385,7 +409,7 @@ prog kuidDB = do
               m' <- up $$ m
               let jsm = match m'
               -- Display the model
---              txt <- fun "$.toJSON" $$ m'
+              qa_txt <- fun "$.toJSON" $$ mQA jsm
               console # B.log ("MODEL: " :: JSString)
               console # B.log m
 
@@ -395,7 +419,8 @@ prog kuidDB = do
                         " mUID=" <> mUID jsm <>
                         " x=" <> cast (mX jsm) <>
                         " y=" <> cast (mY jsm) <>
-                        " s=" <> cast (mScale jsm) <> ""
+                        " s=" <> cast (mScale jsm) <>
+                        " qa=" <> qa_txt
                         :: JSString)
 
               name <- examName (mUID jsm) (mPage jsm)
@@ -438,10 +463,10 @@ prog kuidDB = do
               whenB ((mQuestion jsm /=* mQuestion jsm0) ||* (mUID jsm /=* mUID jsm0)) $ do
                 () <- jq("#marking-sheet") >>= invoke "scrollTop" (0 :: JSNumber)
                 o1 :: JSObject <- jq ("#marking-sheet #q-" <> mQuestion jsm) >>= invoke "position" ()
-                o2 :: JSObject <- jq ("#marking-sheet h4") >>= invoke "position" ()
+                o2 :: JSObject <- jq ("#marking-sheet #top-of-grading-sheet") >>= invoke "position" ()
                 whenB (o1 /=* nullJS &&* o2 /=* nullJS) $ do
                       offset :: JSNumber <- evaluate $ (o1 ! attr "top") - (o2 ! attr "top")
-                      () <- jq ("#marking-sheet") >>= invoke "scrollTop" (offset + 5)
+                      () <- jq ("#marking-sheet") >>= invoke "scrollTop" (offset + 0)
                       return ()
 
                 -- now, check to see if you have an entry for this question
@@ -455,9 +480,30 @@ prog kuidDB = do
                                                           })
 
 
+                -- And also highlight the question number
+
+                jq (".highlight") >>= removeClass ("highlight")
+                jq("h5#q-" <> mQuestion jsm) >>= addClass("highlight")
+                jq("#q-" <> mQuestion jsm <> " .question-number") >>= addClass("highlight")
+                () <- jq("#q-" <> mQuestion jsm <> " focus") >>= invoke "focus" ()
+
+                return ()
 
 
-              return m'
+              -- now, if we need to post a question ...
+
+              whenB (cast (mQA jsm) /=* nullJS) $ do
+                  msg <- empty
+                  msg # push ("QA":: JSString)
+                  msg # push (mUID jsm)
+                  msg # push (mQA jsm ! attr "qaQ")
+                  msg # push (mQA jsm ! attr "qaA")
+
+                  -- send the server the message
+                  upLink # putUplink msg
+
+              -- return the jsm without the delta request
+              tuple $ jsm { mQA = cast nullJS }
 
       -- listen on sliders
       forkJS $ loop () $ \ () -> do
@@ -603,6 +649,10 @@ prog kuidDB = do
           )
 
 
+      answerQuestion <- function $ \  (question,answer) -> do
+--                alert("ANSWER " <> question <> " " <> answer)
+                qa <- tuple $ QA question answer
+                upModel $ \ jsm -> return $ jsm { mQA = qa }
 
       jq "#who-is-this" >>= on "keyup mouseup change" "" (\ (event :: JSObject, aux:: JSObject) -> do
               txt :: JSString <- jq ("#who-is-this") >>= invoke "val" ()
@@ -620,6 +670,9 @@ prog kuidDB = do
                         arr # forEach (\ k -> do
                            student <- kuidMap # M.lookup k
                            jq ("#who-am-i") >>= append (cast (k <> " "<> student <> "<BR>") :: JSObject)
+                           -- If there is only one, then send it to the server
+                           whenB ((arr ! length') ==* 1) $ do
+                             answerQuestion $$ ("0",k <> " "<> student)
                            return ()
                           )
                         return ()
@@ -635,7 +688,8 @@ prog kuidDB = do
                      console # B.log ("Tab pressed" :: JSString)
                      -- Move to the next question
 
-
+                     -- stop taking letters for
+                     () <- jq (":input") >>= invoke "blur" ()
 
                      upModel $ \ jsm -> do
                              console # B.log ("theTab Up" :: JSString)
@@ -666,6 +720,45 @@ default(JSNumber, JSString, String)
 
 -----------------------------------------------------------------------
 
+
+server :: SunroofEngine -> Uplink (JSArray JSString) -> Downlink (JSString, JSMap JSString JSString) -> IO ()
+server doc up down = do
+  let sendContents uid (UpperState st) =
+          do putDownlink down $ do
+                mp <- M.newMap
+                sequence_ [ return () -- mp # M.insert (js x) (js y)
+                          | Just m2 <- [HM.lookup uid st]
+                          , (x,y) <- HM.toList m2
+                          ]
+                return (js uid,mp)
+
+  let loop st = do
+        print st
+        msg <- getUplink up
+        case msg of
+          ["UID",uid] -> do
+                     sendContents uid st
+                     loop $ st
+
+          ["QA",uid,q,a] -> case correct q a of
+                             Nothing -> do print "OPPS"
+                             Just (msg,score) -> do
+                                     writeAC uid q (AC a msg score)
+                                     let st' = insertAC uid q (AC a msg score) st
+                                     sendContents uid st'
+                                     loop $ insertAC uid q (AC a msg score) st'
+          _ -> do
+            print ("Hu?",msg)
+            loop st
+  st <- readUpperState
+  loop st
+
+correct "0" uid = return ("Name: " ++ uid,0)
+correct _ _ = Nothing
+
+-----------------------------------------------------------------------
+
+
 --- Key persistent API
 
 readKUIDs :: String -> IO [(String,String)]
@@ -678,44 +771,70 @@ readKUIDs fileName = do
                  | x <- lines file
                  ]
 
-data AC = AC String String      -- anwser and comment
--- { question :: String, answer :: String, score :: String }
-        deriving (Eq,Ord, Show, Read)
+data AC = AC { answer :: String, message :: String, score :: Int }
+        deriving (Eq,Ord, Show)
+
 type UID = String
+type Question = String
 
 data UpperState = UpperState
-        { us_UID          :: UID
-        , us_Answers      :: HM.Map UID [HM.Map String AC]
+        { us_Answers      :: HM.Map UID (HM.Map Question AC)
         }
         deriving (Eq,Ord, Show)
 
---updateUpperState ::
+readUpperState :: IO UpperState
+readUpperState = do
+        tups <- readAC "db"
+        let dbs = [ HM.singleton uid (HM.singleton q ac)
+                  | (uid,q,ac) <- tups
+                  ]
+
+        -- later answer count
+        return $ UpperState { us_Answers = HM.unionsWith (HM.unionWith comb) dbs }
+
+comb mp1 mp2 = mp2
 
 -- send back update to the lower-level model
-readFileState :: UID -> IO [String]
+readFileState :: String -> IO [String]
 readFileState nm = (do
         h <- openFile ("qa/" ++ nm ++ ".txt") ReadMode
         let loop = do
               b <- hIsEOF h
               if b        then return []
-                          else do x <- hGetLine h
-                                  xs <- loop
-                                  return (x : xs)
+                          else (do x <- hGetLine h
+                                   xs <- loop
+                                   return (x : xs))  `catch` (\ (e ::  IOException)  -> do { if isDoesNotExistError e then return [] else fail "Opps" })
         xs <- loop
         hClose h
-        return xs) `catch` (\ (e ::  IOException)  -> do { if isDoesNotExistError e then return [] else fail "Opps" })
+        return xs)
 
-readAC :: UID -> IO (HM.Map String AC)
+readAC :: String -> IO [(UID,Question,AC)]
 readAC nm = do
-        qs <- readFileState nm
-        let xs :: [(String,AC)]= map read qs
-        return $ HM.fromList xs
+        qss <- readFileState nm
+        return [ n
+               | qs <- qss
+               , (n,"") <- readT qs
+               ]
 
-writeAC :: UID -> String -> AC -> IO ()
-writeAC nm q (AC a c) = do
-        appendFile ("qa/" ++ nm ++ ".txt") (show (q,AC a c) ++ "\n")
+readT :: ReadS (UID,Question,AC)
+readT xs0 =
+        [ ((uid,q,AC a m s),xs5)
+        | (uid,xs1) <- reads xs0
+        , (q,xs2) <- reads xs1
+        , (a,xs3) <- reads xs2
+        , (m,xs4) <- reads xs3
+        , (s,xs5) <- reads xs4
+        ]
+
+writeAC :: UID -> Question -> AC -> IO ()
+writeAC nm q (AC a m c) = appendFile ("qa/db.txt")  $
+        show nm ++ " " ++ show q ++ " " ++ show a ++ " " ++ show m ++ " " ++ show c ++ "\n"
+
+insertAC :: UID -> Question -> AC -> UpperState -> UpperState
+insertAC nm q ac (UpperState fm) = UpperState (HM.insertWith (HM.unionWith comb) nm (HM.singleton q ac) fm)
 
 --updateDB ::
+
 
 whenB a m = ifB a m (return ())
 

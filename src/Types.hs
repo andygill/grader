@@ -38,7 +38,7 @@ deriveJSTuple
   |]
 
 ----------------------------------------------------------------
-
+{-
 newtype JSStudent = JSStudent JSObject
 
 data Student = Student
@@ -51,7 +51,7 @@ deriveJSTuple
   [d| instance JSTuple JSStudent where
           type Internals JSStudent = JSStudent
   |]
-
+-}
 ----------------------------------------------------------------
 
 newtype JSPosition = JSPosition JSObject
@@ -70,7 +70,42 @@ deriveJSTuple
 
 ----------------------------------------------------------------
 
+newtype JSQA = JSQA JSObject
 
+data QA = QA
+  { qaQ :: JSString
+  , qaA :: JSString
+  }
+
+deriveJSTuple
+  [d| instance JSTuple JSQA where
+          type Internals JSQA = QA
+  |]
+
+----------------------------------------------------------------
+
+newtype JSServerRequest = JSServerRequest JSObject
+
+data ServerRequest = ServerRequest
+  { sUID :: JSString    -- this person
+  , sQA :: JSQA         -- give this response to a question
+  }
+
+deriveJSTuple
+  [d| instance JSTuple JSServerRequest where
+          type Internals JSServerRequest = ServerRequest
+  |]
+
+{-
+instance SunroofResult JSServerRequest where
+  type ResultOf JSServerRequest = (String,String,String)
+  jsonToValue Proxy =
+    Data.Proxy.Proxy * a
+    -> aeson-0.6.1.0:Data.Aeson.Types.Internal.Value -> ResultOf a
+  	-- Defined in `Language.Sunroof.Server'
+-}
+
+----------------------------------------------------------------
 
 newtype JSModel = JSModel JSObject
 
@@ -84,6 +119,7 @@ data Model = Model
         , mX     :: JSNumber     -- where from the page we are viewing
         , mY     :: JSNumber     --
         , mScale :: JSNumber     -- zooming
+        , mQA    :: JSQA
         }
 
 deriveJSTuple
