@@ -243,6 +243,7 @@ prog kuidDB upLink downLink = do
                 , mScale = js s
                 , mQA    = cast nullJS
                 , mComment = commentMap
+                , mStep = 0
                 }
 
       jsModel :: JSModel <- tuple model
@@ -346,6 +347,12 @@ prog kuidDB upLink downLink = do
 
 
 
+      answerQuestion <- function $ \  (question,answer) -> do
+--                alert("ANSWER " <> question <> " " <> answer)
+                qa <- tuple $ QA question answer
+                upModel $ \ jsm -> return $ jsm { mQA = qa }
+
+
       let newAnswer :: [String] -> Bool -> JSObject -> JS t ()
           newAnswer opts ver answer = do
               theId :: JSString <- jq (cast answer) >>= invoke "attr" ("id" :: JSString)
@@ -373,6 +380,8 @@ prog kuidDB upLink downLink = do
                         ("<div id=\"a-" <> theId <> "\" class=\"question-score\"></div>")
               jq (cast answer) >>= setHtml new_txt
 
+              if ver then jq ("#b-" <> theId) >>= addClass("btn-group-vertical") else return ()
+
               sel <- newSelect ("b-" <> theId)
               sequence [ sel # insertOption (js k) (js k)
                        | k <- opts
@@ -384,13 +393,18 @@ prog kuidDB upLink downLink = do
                       txt <- sel # idSelect k
                       jq ("#" <> txt) >>= addClass(if ver then "btn-mini" else "btn-small"))
 
+              sel # addCallback (\ k -> do
+                        sel # clearSelect
+                        sel # activeSelect k
+                        answerQuestion $$ (theId,k))
+
               return ()
 
       answer_ids :: JSArray JSObject <- jq (".answer-truefalse") >>= invoke "get" ()
-      answer_ids # forEach (newAnswer ["?","T","F"] False)
+      answer_ids # forEach (newAnswer ["T","F"] False)
 
       answer_ids :: JSArray JSObject <- jq (".answer-ABCD") >>= invoke "get" ()
-      answer_ids # forEach (newAnswer ["?","A","B","C","D"] True)
+      answer_ids # forEach (newAnswer ["A","B","C","D"] True)
 
       answer_ids :: JSArray JSObject <- jq (".answer-5") >>= invoke "get" ()
       answer_ids # forEach (newAnswer (map show [0..5::Int]) False)
@@ -438,7 +452,8 @@ prog kuidDB upLink downLink = do
                         " x=" <> cast (mX jsm) <>
                         " y=" <> cast (mY jsm) <>
                         " s=" <> cast (mScale jsm) <>
-                        " qa=" <> qa_txt
+                        " qa=" <> qa_txt <>
+                        " step=" <> cast (mStep jsm)
                         :: JSString)
 
               name <- examName (mUID jsm) (mPage jsm)
@@ -508,6 +523,21 @@ prog kuidDB upLink downLink = do
                 return ()
 
 
+              -- if the userid changes
+              whenB ((cast (mUID jsm) /=* mUID jsm0) ||* (mStep jsm ==* 0)) $ do
+                  msg <- empty
+                  msg # push ("UID":: JSString)
+                  msg # push (mUID jsm)
+                  -- send the server the message
+                  upLink # putUplink msg
+
+                  () <- jq("#who-is-this")      >>= invoke "val" (""::JSString)
+                  jq(".question-score")         >>= setHtml("")
+                  jq("#marking-sheet .active")  >>= removeClass ("active")
+                  jq("#who-am-i")               >>= setHtml("")
+
+                  return ()
+
               -- now, if we need to post a question ...
 
               whenB (cast (mQA jsm) /=* nullJS) $ do
@@ -534,7 +564,7 @@ prog kuidDB upLink downLink = do
                         return ())
 
               -- return the jsm without the delta request
-              tuple $ jsm { mQA = cast nullJS }
+              tuple $ jsm { mQA = cast nullJS, mStep = 1 + mStep jsm }
 
       -- listen on sliders
       forkJS $ loop () $ \ () -> do
@@ -679,12 +709,6 @@ prog kuidDB upLink downLink = do
 --              console # B.log (the_index)
           )
 
-
-      answerQuestion <- function $ \  (question,answer) -> do
---                alert("ANSWER " <> question <> " " <> answer)
-                qa <- tuple $ QA question answer
-                upModel $ \ jsm -> return $ jsm { mQA = qa }
-
       jq "#who-is-this" >>= on "keyup mouseup change" "" (\ (event :: JSObject, aux:: JSObject) -> do
               txt :: JSString <- jq ("#who-is-this") >>= invoke "val" ()
               console # B.log (event ! attr "charCode" :: JSNumber)
@@ -703,7 +727,7 @@ prog kuidDB upLink downLink = do
                            jq ("#who-am-i") >>= append (cast (k <> " "<> student <> "<BR>") :: JSObject)
                            -- If there is only one, then send it to the server
                            whenB ((arr ! length') ==* 1) $ do
-                             answerQuestion $$ ("0",k <> " "<> student)
+                             answerQuestion $$ ("q-0",k <> " "<> student)
                            return ()
                           )
                         return ()
@@ -759,12 +783,11 @@ server doc up down = do
                 mp <- M.newMap
                 sequence_ [ mp # M.insert (js x) (js msg)
                           | Just m2 <- [HM.lookup uid st]
-                          , (x,AC _ msg _) <- HM.toList m2
+                          , (x,AC q msg _) <- HM.toList m2
                           ]
                 tuple $ ServerResponse (js uid) mp
 
   let loop st = do
-        print st
         msg <- getUplink up
         case msg of
           ["UID",uid] -> do
@@ -773,6 +796,8 @@ server doc up down = do
 
           ["QA",uid,q,a] -> case correct q a of
                              Nothing -> do print "OPPS"
+                                           loop $ st
+
                              Just (msg,score) -> do
                                      writeAC uid q (AC a msg score)
                                      let st' = insertAC uid q (AC a msg score) st
@@ -784,8 +809,44 @@ server doc up down = do
   st <- readUpperState
   loop st
 
-correct "0" uid = return ("Name: " ++ uid,0)
+correct "q-0" uid = return ("Name: " ++ uid,0)
+
+correct "q-1a" ans = expect "T" ans 2
+correct "q-1b" ans = expect "T" ans 2
+correct "q-1c" ans = expect "T" ans 2
+correct "q-1d" ans = expect "F" ans 2
+correct "q-1e" ans = expect "F" ans 2
+correct "q-1f" ans = expect "F" ans 2
+correct "q-1g" ans = expect "F" ans 2
+
+correct "q-2a" ans = expect "B" ans 3
+correct "q-2b" ans = expect "A" ans 3
+correct "q-2c" "B" = return ("B : partially correct (2/3)",2) -- Hack, allow 2 for this
+correct "q-2c" ans = expect "C" ans 3
+correct "q-2d" ans = expect "D" ans 3
+
+correct "q-3-1" ans = theScore ans
+correct "q-3-2" ans = theScore ans
+
+correct "q-4a" ans = theScore ans
+correct "q-4b" ans = theScore ans
+correct "q-4c" ans = theScore ans
+
+correct "q-5-1" ans = theScore ans
+correct "q-5-2" ans = theScore ans
+
+correct "q-6a" ans = theScore ans
+correct "q-6b" ans = theScore ans
+correct "q-6c" ans = theScore ans
+correct "q-6d" ans = theScore ans
+
 correct _ _ = Nothing
+
+theScore ans = return ("Score : " ++ show ans,read ans)
+
+expect :: String -> String -> Int -> Maybe (String,Int)
+expect ok val n | ok == val = return (val ++ " : Correct (" ++ show n ++")",n)
+                | otherwise = return (val ++ " : Wrong",0)
 
 -----------------------------------------------------------------------
 
@@ -862,7 +923,7 @@ writeAC nm q (AC a m c) = appendFile ("qa/db.txt")  $
         show nm ++ " " ++ show q ++ " " ++ show a ++ " " ++ show m ++ " " ++ show c ++ "\n"
 
 insertAC :: UID -> Question -> AC -> UpperState -> UpperState
-insertAC nm q ac (UpperState fm) = UpperState (HM.insertWith (HM.unionWith comb) nm (HM.singleton q ac) fm)
+insertAC nm q ac (UpperState fm) = UpperState (HM.insertWith (HM.union) nm (HM.singleton q ac) fm)
 
 --updateDB ::
 

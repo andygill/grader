@@ -112,6 +112,7 @@ data Model = Model
         , mScale :: JSNumber     -- zooming
         , mQA    :: JSQA
         , mComment :: JSMap JSString JSString
+        , mStep :: JSNumber
         }
 
 deriveJSTuple
