@@ -60,8 +60,8 @@ main2 [] = shake (shakeOptions) $ do
                 need [input]
                 liftIO $ putStrLn $ "Writing to: " ++ output
                 system' "convert"
-                        [ "-density"
-                        , res
+                        [ "-density", res
+                        , "-rotate", "180"
                         , input
                         , output
                         ]
