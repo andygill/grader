@@ -46,11 +46,13 @@ examName uid page = do
 
 
 
-        return ("pages/exam3-" <> batch <> ".200-" <> cast (start' + (page - 1)) <> ".png")
+        return ("pages/exam4-" <> batch <> ".200-" <> cast (start' + (page - 1)) <> ".png")
 
   -- Figure out what scripts you actually have
 uids = [ examUID b n
-            | (b::Int,sz::Int) <- [1..] `zip` [120,78,78,108,78,60]
+            | (b::Int,sz::Int) <- [1..] `zip`
+                --[120,78,78,108,78,60]
+                [96,84,120,90,90]
             , n <- [0,6..(sz-1)]
             ]
 
@@ -287,18 +289,15 @@ prog kuidDB upLink downLink = do
 
       question # insertOption "3-1" "3.1"
       question # insertOption "3-2" "3.2"
+      question # insertOption "3-3" "3.3"
+      question # insertOption "3-4" "3.4"
+      question # insertOption "3-5" "3.5"
+      question # insertOption "3-6" "3.6"
 
       question # insertOption "4a" "4a"
       question # insertOption "4b" "4b"
       question # insertOption "4c" "4c"
-
-      question # insertOption "5-1" "5.1"
-      question # insertOption "5-2" "5.2"
-
-      question # insertOption "6a" "6a"
-      question # insertOption "6b" "6b"
-      question # insertOption "6c" "6c"
-      question # insertOption "6d" "6d"
+      question # insertOption "4d" "4d"
 
       question # insertOption "total" "&raquo;"
 
@@ -935,20 +934,19 @@ whenB a m = ifB a m (return ())
 
 whereQ :: [(String,Int,Int,Int,Float)]
 whereQ = [("0", 1,      237,202,        2)
-         ,("1", 2,      231,242,         1.72)
-         ,("2a",2,      172,804,         1.72)
+         ,("1", 2,      172,286,         1.72)
+         ,("2a",2,      172,854,         1.72)
          ,("2b",2,      172,1147,        1.72)
          ,("2c",2,      172,1432,        1.72)
-         ,("2d",2,      172,1704,        1.72)
-         ,("3-1",3,     172,845,         1.72)
-         ,("3-2",3,     181,1406,        1.72)
-         ,("4a",4,      172,593,         1.72)
-         ,("4b",4,      172,1000,        1.72)
-         ,("4c",4,      172,1445,        1.72)
-         ,("5-1",5,     172,845,         1.72)
-         ,("5-2",5,     181,1406,        1.72)
-         ,("6a",6,      172,271,         1.72)
-         ,("6b",6,      172,728,         1.72)
-         ,("6c",6,      172,1147,        1.72)
-         ,("6d",6,      172,1580,        1.72)
+         ,("2d",2,      172,1754,        1.72)
+         ,("3-1",3,     172,541,         1.72)
+         ,("3-2",3,     181,1322,        1.72)
+         ,("3-3",4,     181,396,        1.72)
+         ,("3-4",4,     181,1322,        1.72)
+         ,("3-5",5,     181,796,        1.72)
+         ,("3-6",5,     181,1406,        1.72)
+         ,("4a",6,      172,271,         1.72)
+         ,("4b",6,      172,728,         1.72)
+         ,("4c",6,      172,1147,        1.72)
+         ,("4d",6,      172,1580,        1.72)
          ]
