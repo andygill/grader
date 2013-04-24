@@ -1,14 +1,15 @@
 
-. gen/config.sh
+. gen/config-$1.sh
 
-echo convert pages/$page1 \
+convert pages/$page1 \
   -gravity center -extent 1350x2000 \
   -gravity none \
   -font Bookman-DemiItalic -pointsize 72 -stroke red -fill red \
   -draw "text 500,1000 '$student'" \
-  tmp/output-0.png
+  -draw "text 800,1200 '$result'" \
+  tmp/$1-output-0.png
 
-echo convert pages/$page2 \
+convert pages/$page2 \
   -gravity center -extent 1350x2000 \
   -gravity none \
   -font Bookman-DemiItalic -pointsize 44 -stroke red -fill red \
@@ -23,26 +24,26 @@ echo convert pages/$page2 \
   -draw "text 60,1250 '$q2b'" \
   -draw "text 60,1550 '$q2c'" \
   -draw "text 60,1800 '$q2d'" \
-  tmp/output-1.png
+  tmp/$1-output-1.png
 
-echo convert pages/$page3 \
+convert pages/$page3 \
   -gravity center -extent 1350x2000 \
   -gravity none \
   -font Bookman-DemiItalic -pointsize 72 -stroke red -fill red \
   -draw "text 1200,1000 '$q31'" \
   -draw "text 1200,1600 '$q32'" \
-  tmp/output-2.png
+  tmp/$1-output-2.png
 
 
 
-echo convert pages/$page4 \
+convert pages/$page4 \
   -gravity center -extent 1350x2000 \
   -gravity none \
   -font Bookman-DemiItalic -pointsize 72 -stroke red -fill red \
   -draw "text 1200,700 '$q4a'" \
   -draw "text 1200,1100 '$q4b'" \
   -draw "text 1200,1600 '$q4c'" \
-  tmp/output-3.png
+  tmp/$1-output-3.png
 
 convert pages/$page5 \
   -gravity center -extent 1350x2000 \
@@ -50,19 +51,19 @@ convert pages/$page5 \
   -font Bookman-DemiItalic -pointsize 72 -stroke red -fill red \
   -draw "text 1200,1100 '$q51'" \
   -draw "text 1200,1600 '$q52'" \
-  tmp/output-4.png
-exit 0
+  tmp/$1-output-4.png
+
 convert pages/$page6 \
   -gravity center -extent 1350x2000 \
   -gravity none \
   -font Bookman-DemiItalic -pointsize 72 -stroke red -fill red \
-  -draw "text 1200,700 '$q6a'" \
-  -draw "text 1200,1100 '$q6b'" \
-  -draw "text 1200,1600 '$q6c'" \
-  -draw "text 1200,1600 '$q6d'" \
-  tmp/output-5.png
+  -draw "text 1200,400 '$q6a'" \
+  -draw "text 1200,800 '$q6b'" \
+  -draw "text 1200,1250 '$q6c'" \
+  -draw "text 1200,1650 '$q6d'" \
+  tmp/$1-output-5.png
 #
-convert +append tmp/output-0.png tmp/output-1.png tmp/output-2.png tmp/output-012.png
-convert +append tmp/output-3.png tmp/output-4.png tmp/output-3.png tmp/output-345.png
-convert tmp/output-012.png tmp/output-345.png final/foo.pdf
+convert +append tmp/$1-output-0.png tmp/$1-output-1.png tmp/$1-output-2.png tmp/$1-output-012.png
+convert +append tmp/$1-output-3.png tmp/$1-output-4.png tmp/$1-output-5.png tmp/$1-output-345.png
+convert -quality 100 tmp/$1-output-012.png tmp/$1-output-345.png final/$target
 
